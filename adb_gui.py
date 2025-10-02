@@ -270,15 +270,32 @@ HTML_TEMPLATE = """
                     <div class="card-body">
                         <!-- Controls -->
                         <div class="row mb-3">
-                            <div class="col-md-6">
-                                <div class="input-group">
-                                    <input type="text" id="grep-filter" class="form-control" placeholder="Enter filter keyword for grep...">
-                                    <button class="btn btn-warning" onclick="applyFilter()">
-                                        <i class="fas fa-filter"></i> Filter
-                                    </button>
+                            <div class="col-md-12">
+                                <label class="form-label text-warning"><i class="fas fa-filter"></i> Grep Filters (Any match will be shown)</label>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter1" class="form-control" placeholder="Filter 1...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter2" class="form-control" placeholder="Filter 2...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter3" class="form-control" placeholder="Filter 3...">
+                                            <button class="btn btn-warning" onclick="applyFilters()">
+                                                <i class="fas fa-filter"></i> Apply
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
                                 <div class="btn-group w-100">
                                     <button class="btn btn-success" onclick="startLogging()">
                                         <i class="fas fa-play"></i> Start
@@ -289,7 +306,7 @@ HTML_TEMPLATE = """
                                     <button class="btn btn-warning" onclick="clearLogs()">
                                         <i class="fas fa-eraser"></i> Clear
                                     </button>
-                                    <button class="btn btn-primary" onclick="saveLogs()">
+                                    <button class="btn btn-primary" onclick="showSaveDialog()">
                                         <i class="fas fa-save"></i> Save
                                     </button>
                                 </div>
