@@ -539,22 +539,10 @@ class ADBManager:
             return []
     
     def detect_device_os(self, device_id):
-        """Detect device OS type based on properties"""
-        try:
-            # Try to detect Vega OS
-            result = subprocess.run(['adb', '-s', device_id, 'shell', 'getprop', 'ro.product.model'], 
-                                  capture_output=True, text=True, timeout=5)
-            model = result.stdout.strip().lower()
-            
-            if 'vega' in model:
-                return 'vega'
-            elif 'puffin' in model:
-                return 'puffin'
-            else:
-                # Default to FOS for other devices
-                return 'fos'
-        except:
-            return 'fos'  # Default
+        """Detect device OS type using trial and error log method"""
+        # We'll determine OS type by trying different log commands
+        # This is more reliable than checking properties
+        return 'unknown'  # Will be determined during logging trial
     
     def start_logging(self, device_id):
         """Start logging for specified device"""
