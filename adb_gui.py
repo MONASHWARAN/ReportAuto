@@ -629,32 +629,25 @@ HTML_TEMPLATE = """
             if (!isLogging) return;
 
             try {
-                // Get current filter values
-                const filter1 = document.getElementById('grep-filter1').value.trim();
-                const filter2 = document.getElementById('grep-filter2').value.trim();
-                const filter3 = document.getElementById('grep-filter3').value.trim();
-                const filters = [filter1, filter2, filter3].filter(f => f !== '');
-                
-                // Build URL with filters
-                let url = '/api/get-logs';
-                if (filters.length > 0) {
-                    const params = filters.map(f => `filters=${encodeURIComponent(f)}`).join('&');
-                    url += `?${params}`;
-                }
-                
-                const response = await fetch(url);
+                const response = await fetch('/api/get-logs');
                 const data = await response.json();
                 
                 if (data.all_logs) {
                     document.getElementById('all-log-output').textContent = data.all_logs;
                 }
-                if (data.filtered_logs) {
+                if (data.filtered_logs !== undefined) {
                     const filteredOutput = document.getElementById('filtered-log-output');
-                    if (data.filtered_logs.includes('<div class="text-muted')) {
-                        // HTML message for no matches
-                        filteredOutput.innerHTML = data.filtered_logs;
+                    if (data.filtered_logs === "" || data.filtered_logs.includes('<div class="text-muted')) {
+                        // HTML message for no matches or empty
+                        filteredOutput.innerHTML = data.filtered_logs || `
+                            <div class="text-muted text-center p-4">
+                                <i class="fas fa-filter fa-2x mb-2"></i><br>
+                                No filtered logs available.<br>
+                                Enter filter keywords and start logging to see matches.
+                            </div>
+                        `;
                     } else {
-                        // Regular log text
+                        // Regular log text - preserve existing content and append new
                         filteredOutput.textContent = data.filtered_logs;
                     }
                 }
