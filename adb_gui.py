@@ -336,7 +336,11 @@ HTML_TEMPLATE = """
                             </div>
                             <div class="tab-pane fade" id="filtered-logs">
                                 <div class="log-output" id="filtered-log-output">
-                                    No filtered logs available. Enter a filter keyword and start logging.
+                                    <div class="text-muted text-center p-4">
+                                        <i class="fas fa-filter fa-2x mb-2"></i><br>
+                                        No filtered logs available.<br>
+                                        Enter filter keywords and start logging to see matches.
+                                    </div>
                                 </div>
                             </div>
                         </div>
