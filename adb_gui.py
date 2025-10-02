@@ -730,33 +730,77 @@ class ADBManager:
             return False, f"Failed to save logs: {str(e)}"
     
     def pull_chr_file(self, os_type):
-        """Pull CHR.db file based on OS type"""
+        """Pull CHR.db file based on OS type with trial and error method"""
         try:
             devices = self.get_connected_devices()
             if not devices:
                 return False, "No devices connected"
             
-            device_id = devices[0]['id']  # Use first available device
+            # Find first available device
+            device_id = None
+            for device in devices:
+                if device['status'] == 'device':
+                    device_id = device['id']
+                    break
+            
+            if not device_id:
+                return False, "No active devices found"
+            
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             local_filename = f"CHR_{os_type}_{timestamp}.db"
             
-            if os_type.lower() == 'vega':
-                remote_path = "/var/lib/data/alexahybrid/smartHomeSkill/customerHomeRegistry.db"
-            elif os_type.lower() == 'puffin':
-                remote_path = "/data/alexahybrid/files/smartHomeSkill/customerHomeRegistry.db"
-            elif os_type.lower() == 'fos':
-                remote_path = "/data/data/com.amazon.alexahybridremoteskill/files/customerHomeRegistry.db"
-            else:
+            # Define all possible paths for each OS type
+            path_mapping = {
+                'vega': [
+                    "/var/lib/data/alexahybrid/smartHomeSkill/customerHomeRegistry.db",
+                    "/var/lib/alexahybrid/smartHomeSkill/customerHomeRegistry.db",
+                    "/data/alexahybrid/smartHomeSkill/customerHomeRegistry.db"
+                ],
+                'puffin': [
+                    "/data/alexahybrid/files/smartHomeSkill/customerHomeRegistry.db",
+                    "/data/alexahybrid/smartHomeSkill/customerHomeRegistry.db"
+                ],
+                'fos': [
+                    "/data/data/com.amazon.alexahybridremoteskill/files/customerHomeRegistry.db",
+                    "/data/data/com.amazon.alexahybrid/files/customerHomeRegistry.db"
+                ]
+            }
+            
+            remote_paths = path_mapping.get(os_type.lower(), [])
+            if not remote_paths:
                 return False, f"Unsupported OS type: {os_type}"
             
-            # Execute ADB pull command
-            result = subprocess.run(['adb', '-s', device_id, 'pull', remote_path, local_filename], 
-                                  capture_output=True, text=True, timeout=30)
+            # Try each path until one works
+            for i, remote_path in enumerate(remote_paths, 1):
+                try:
+                    print(f"Trying path {i}/{len(remote_paths)}: {remote_path}")
+                    
+                    # Execute ADB pull command
+                    result = subprocess.run(['adb', '-s', device_id, 'pull', remote_path, local_filename], 
+                                          capture_output=True, text=True, timeout=30)
+                    
+                    if result.returncode == 0 and os.path.exists(local_filename):
+                        # Check if file has actual content (not empty)
+                        file_size = os.path.getsize(local_filename)
+                        if file_size > 0:
+                            return True, f"✅ Successfully pulled {os_type.upper()} CHR.db to {local_filename} ({file_size} bytes)"
+                        else:
+                            # File exists but is empty, try next path
+                            os.remove(local_filename)
+                            continue
+                    else:
+                        # Command failed, try next path
+                        if os.path.exists(local_filename):
+                            os.remove(local_filename)
+                        continue
+                        
+                except subprocess.TimeoutExpired:
+                    return False, f"Pull operation timed out for {os_type}"
+                except Exception as e:
+                    print(f"Error trying path {remote_path}: {str(e)}")
+                    continue
             
-            if result.returncode == 0:
-                return True, f"Successfully pulled {os_type} CHR.db to {local_filename}"
-            else:
-                return False, f"Failed to pull file: {result.stderr}"
+            return False, f"❌ Failed to pull {os_type.upper()} CHR.db - file not found in any expected location"
                 
         except Exception as e:
             return False, f"Error pulling CHR file: {str(e)}"
