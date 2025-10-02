@@ -844,10 +844,10 @@ No logs match your filters: <strong>{', '.join(self.current_filters)}</strong><b
         self.log_buffer.clear()
         self.filtered_log_buffer.clear()
     
-    def set_filter(self, filter_keyword):
-        """Set log filter"""
-        self.current_filter = filter_keyword
-        # Clear existing filtered logs when filter changes
+    def set_filters(self, filter_keywords):
+        """Set multiple log filters"""
+        self.current_filters = [f.strip() for f in filter_keywords if f.strip()]
+        # Clear existing filtered logs when filters change
         self.filtered_log_buffer.clear()
     
     def save_logs(self):
