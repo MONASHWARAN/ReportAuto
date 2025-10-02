@@ -883,8 +883,14 @@ class ADBManager:
         if self.current_filters and not filtered_logs.strip():
             filtered_logs = f"""<div class="text-muted text-center p-4">
 <i class="fas fa-search fa-2x mb-2"></i><br>
-No logs match your filters: <strong>{', '.join(self.current_filters)}</strong><br>
-<small>Try different keywords or check if logging is active</small>
+<strong>Active Filters:</strong> {', '.join(self.current_filters)}<br>
+<small>No logs match your filters yet. Waiting for matching log entries...</small>
+</div>"""
+        elif not self.current_filters:
+            filtered_logs = """<div class="text-muted text-center p-4">
+<i class="fas fa-filter fa-2x mb-2"></i><br>
+No filtered logs available.<br>
+Enter filter keywords and start logging to see matches.
 </div>"""
         
         return all_logs, filtered_logs
