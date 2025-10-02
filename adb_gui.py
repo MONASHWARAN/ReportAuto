@@ -899,6 +899,7 @@ Enter filter keywords and start logging to see matches.
         """Clear log buffers"""
         self.log_buffer.clear()
         self.filtered_log_buffer.clear()
+        print(f"Logs cleared. Active filters: {self.current_filters}")
     
     def set_filters(self, filter_keywords):
         """Set multiple log filters"""
