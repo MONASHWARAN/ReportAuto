@@ -1035,19 +1035,34 @@ def clear_logs():
     adb_manager.clear_logs()
     return jsonify({'success': True, 'message': 'Logs cleared'})
 
+@app.route('/api/apply-filters', methods=['POST'])
+def apply_filters():
+    """API endpoint to apply multiple filters"""
+    try:
+        data = request.get_json()
+        filters = data.get('filters', [])
+        
+        if not filters:
+            return jsonify({'success': False, 'message': 'No filters provided'})
+        
+        adb_manager.set_filters(filters)
+        return jsonify({
+            'success': True, 
+            'message': f'Filters applied: {", ".join(filters)}',
+            'active_filters': filters
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
 @app.route('/api/get-logs')
 def get_logs():
     """API endpoint to get current logs"""
     all_logs, filtered_logs = adb_manager.get_logs()
     
-    # Handle multiple filters
-    filter_keywords = request.args.getlist('filters')
-    if filter_keywords:
-        adb_manager.set_filters(filter_keywords)
-    
     return jsonify({
         'all_logs': all_logs,
-        'filtered_logs': filtered_logs
+        'filtered_logs': filtered_logs,
+        'active_filters': adb_manager.current_filters
     })
 
 @app.route('/api/save-logs', methods=['POST'])
