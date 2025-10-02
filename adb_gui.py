@@ -850,11 +850,19 @@ No logs match your filters: <strong>{', '.join(self.current_filters)}</strong><b
         # Clear existing filtered logs when filters change
         self.filtered_log_buffer.clear()
     
-    def save_logs(self):
-        """Save current logs to file"""
+    def save_logs(self, custom_filename=None):
+        """Save current logs to file with custom filename"""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"adb_logs_{timestamp}.txt"
+            if custom_filename:
+                # Use custom filename, ensure .txt extension
+                if not custom_filename.endswith('.txt'):
+                    filename = f"{custom_filename}.txt"
+                else:
+                    filename = custom_filename
+            else:
+                # Use default timestamp filename
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"adb_logs_{timestamp}.txt"
             
             with open(filename, 'w') as f:
                 f.write(f"ADB Logs - Generated: {datetime.now()}\n")
