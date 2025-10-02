@@ -860,9 +860,11 @@ class ADBManager:
                     if self.current_filters:
                         for filter_keyword in self.current_filters:
                             if filter_keyword and filter_keyword.lower() in line.lower():
+                                # Add the log entry to filtered buffer
                                 self.filtered_log_buffer.append(log_entry)
                                 if len(self.filtered_log_buffer) > 1000:
                                     self.filtered_log_buffer.pop(0)
+                                print(f"FILTERED LOG MATCH: '{filter_keyword}' found in: {line.strip()}")
                                 break  # Only add once even if multiple filters match
                 
                 elif log_process.poll() is not None:
