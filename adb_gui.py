@@ -545,36 +545,83 @@ class ADBManager:
         return 'unknown'  # Will be determined during logging trial
     
     def start_logging(self, device_id):
-        """Start logging for specified device"""
+        """Start logging for specified device using trial and error method"""
         global log_process, is_logging
         
         try:
             self.stop_logging()  # Stop any existing logging
-            
-            os_type = self.detect_device_os(device_id)
             self.current_device = device_id
             
-            if os_type == 'vega':
-                # For Vega: adb shell journalctl -f
-                log_process = subprocess.Popen(['adb', '-s', device_id, 'shell', 'journalctl', '-f'], 
-                                             stdout=subprocess.PIPE, 
-                                             stderr=subprocess.PIPE,
-                                             text=True,
-                                             bufsize=1)
-            else:
-                # For FOS/Puffin: adb logcat
-                log_process = subprocess.Popen(['adb', '-s', device_id, 'logcat'], 
-                                             stdout=subprocess.PIPE, 
-                                             stderr=subprocess.PIPE,
-                                             text=True,
-                                             bufsize=1)
+            # Trial and error method - try different log commands
+            log_methods = [
+                {
+                    'name': 'FOS/Puffin (logcat)',
+                    'command': ['adb', '-s', device_id, 'logcat'],
+                    'os_type': 'fos'
+                },
+                {
+                    'name': 'Vega (journalctl)',
+                    'command': ['adb', '-s', device_id, 'shell', 'journalctl', '-f'],
+                    'os_type': 'vega'
+                }
+            ]
             
-            is_logging = True
-            # Start background thread to read logs
-            log_thread = threading.Thread(target=self._read_logs, daemon=True)
-            log_thread.start()
+            for method in log_methods:
+                print(f"Trying {method['name']} logging method...")
+                try:
+                    # Try to start the log process
+                    test_process = subprocess.Popen(method['command'], 
+                                                  stdout=subprocess.PIPE, 
+                                                  stderr=subprocess.PIPE,
+                                                  text=True,
+                                                  bufsize=1)
+                    
+                    # Wait a bit to see if we get any output or error
+                    import select
+                    import time
+                    
+                    # Check if process started successfully
+                    time.sleep(2)
+                    if test_process.poll() is not None:
+                        # Process died, try next method
+                        print(f"❌ {method['name']} failed - process terminated")
+                        test_process.terminate()
+                        continue
+                    
+                    # Check if we can read from stdout (indicates logs are flowing)
+                    try:
+                        # Use select to check if data is available without blocking
+                        ready, _, _ = select.select([test_process.stdout], [], [], 3)
+                        if ready:
+                            # We have data available, this method works!
+                            log_process = test_process
+                            is_logging = True
+                            detected_os = method['os_type']
+                            
+                            # Start background thread to read logs
+                            log_thread = threading.Thread(target=self._read_logs, daemon=True)
+                            log_thread.start()
+                            
+                            print(f"✅ {method['name']} method successful!")
+                            return True, f"Started logging for {device_id} using {method['name']} method (Auto-detected: {detected_os.upper()})"
+                        else:
+                            # No data in 3 seconds, try next method
+                            print(f"⏰ {method['name']} - no logs received, trying next method...")
+                            test_process.terminate()
+                            continue
+                            
+                    except Exception as e:
+                        print(f"❌ {method['name']} error: {str(e)}")
+                        test_process.terminate()
+                        continue
+                        
+                except Exception as e:
+                    print(f"❌ Failed to start {method['name']}: {str(e)}")
+                    continue
             
-            return True, f"Started logging for {device_id} ({os_type})"
+            # If we get here, all methods failed
+            return False, "❌ All logging methods failed. Please check device connection and ADB setup."
+            
         except Exception as e:
             return False, f"Failed to start logging: {str(e)}"
     
