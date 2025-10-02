@@ -500,16 +500,6 @@ HTML_TEMPLATE = """
             }
         }
 
-        async function saveLogs() {
-            try {
-                const response = await fetch('/api/save-logs', {method: 'POST'});
-                const data = await response.json();
-                showAlert(data.message, data.success ? 'success' : 'danger');
-            } catch (error) {
-                showAlert('Error saving logs: ' + error.message, 'danger');
-            }
-        }
-
         async function pullFile(osType) {
             try {
                 const response = await fetch('/api/pull-file', {
