@@ -772,6 +772,14 @@ def pull_file():
     success, message = adb_manager.pull_chr_file(os_type)
     return jsonify({'success': success, 'message': message})
 
+def find_free_port():
+    """Find a free port to run the Flask application"""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
+
 def signal_handler(sig, frame):
     """Handle shutdown gracefully"""
     print("\nShutting down ADB GUI Tool...")
@@ -783,12 +791,32 @@ if __name__ == '__main__':
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    print("Starting ADB GUI Tool...")
-    print("Make sure ADB is installed and in your PATH")
-    print("Connect your device via USB and enable USB Debugging")
-    print("Access the GUI at: http://localhost:5000")
+    # Find an available port
+    port = find_free_port()
+    
+    print("="*60)
+    print("🚀 Starting ADB GUI Tool...")
+    print("="*60)
+    print("✅ Make sure ADB is installed and in your PATH")
+    print("✅ Connect your device via USB and enable USB Debugging")
+    print("="*60)
+    print(f"🌐 Access the GUI at: http://localhost:{port}")
+    print(f"🌐 Or from network:   http://0.0.0.0:{port}")
+    print("="*60)
+    print("📱 Supported Devices: Vega OS, Puffin OS, FOS")
+    print("🛠️  Press Ctrl+C to stop the server")
+    print("="*60)
     
     try:
-        app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+        app.run(debug=False, host='0.0.0.0', port=port, threaded=True)
     except KeyboardInterrupt:
         signal_handler(None, None)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print(f"❌ Port {port} is already in use. Trying another port...")
+            port = find_free_port()
+            print(f"🔄 Retrying with port {port}")
+            app.run(debug=False, host='0.0.0.0', port=port, threaded=True)
+        else:
+            print(f"❌ Error starting server: {e}")
+            sys.exit(1)
