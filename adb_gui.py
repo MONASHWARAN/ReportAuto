@@ -635,7 +635,8 @@ class ADBManager:
         self.current_device = None
         self.log_buffer = []
         self.filtered_log_buffer = []
-        self.current_filter = ""
+        self.current_filters = []  # Changed to support multiple filters
+        self.platform_system = platform.system().lower()  # Detect OS for grep/findstr
         
     def get_connected_devices(self):
         """Get list of connected ADB devices"""
