@@ -992,10 +992,10 @@ def get_logs():
     """API endpoint to get current logs"""
     all_logs, filtered_logs = adb_manager.get_logs()
     
-    # Apply current filter if set
-    filter_keyword = request.args.get('filter', '')
-    if filter_keyword:
-        adb_manager.set_filter(filter_keyword)
+    # Handle multiple filters
+    filter_keywords = request.args.getlist('filters')
+    if filter_keywords:
+        adb_manager.set_filters(filter_keywords)
     
     return jsonify({
         'all_logs': all_logs,
@@ -1004,8 +1004,11 @@ def get_logs():
 
 @app.route('/api/save-logs', methods=['POST'])
 def save_logs():
-    """API endpoint to save logs"""
-    success, message = adb_manager.save_logs()
+    """API endpoint to save logs with optional custom filename"""
+    data = request.get_json() or {}
+    custom_filename = data.get('filename')
+    
+    success, message = adb_manager.save_logs(custom_filename)
     return jsonify({'success': success, 'message': message})
 
 @app.route('/api/pull-file', methods=['POST'])
