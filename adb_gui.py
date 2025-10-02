@@ -828,6 +828,15 @@ class ADBManager:
         """Get current logs"""
         all_logs = ''.join(self.log_buffer[-500:])  # Last 500 lines
         filtered_logs = ''.join(self.filtered_log_buffer[-500:])
+        
+        # If no filtered logs but filters are applied, show helpful message
+        if self.current_filters and not filtered_logs.strip():
+            filtered_logs = f"""<div class="text-muted text-center p-4">
+<i class="fas fa-search fa-2x mb-2"></i><br>
+No logs match your filters: <strong>{', '.join(self.current_filters)}</strong><br>
+<small>Try different keywords or check if logging is active</small>
+</div>"""
+        
         return all_logs, filtered_logs
     
     def clear_logs(self):
