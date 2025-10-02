@@ -518,19 +518,86 @@ HTML_TEMPLATE = """
                     body: JSON.stringify({os_type: osType})
                 });
                 const data = await response.json();
-                showAlert(data.message, data.success ? 'success' : 'danger');
+                
+                // Show modal popup with result
+                const modal = new bootstrap.Modal(document.getElementById('filePullModal'));
+                const modalTitle = document.getElementById('pullModalTitle');
+                const modalMessage = document.getElementById('pullModalMessage');
+                const modalHeader = document.getElementById('pullModalHeader');
+                
+                if (data.success) {
+                    modalTitle.innerHTML = '<i class="fas fa-check-circle"></i> File Pull Successful';
+                    modalHeader.style.background = 'var(--gold)';
+                    modalHeader.style.color = 'var(--black)';
+                    modalMessage.textContent = data.message;
+                } else {
+                    modalTitle.innerHTML = '<i class="fas fa-exclamation-triangle"></i> File Pull Failed';
+                    modalHeader.style.background = '#dc3545';
+                    modalHeader.style.color = 'white';
+                    modalMessage.textContent = data.message;
+                }
+                
+                modal.show();
             } catch (error) {
-                showAlert('Error pulling file: ' + error.message, 'danger');
+                const modal = new bootstrap.Modal(document.getElementById('filePullModal'));
+                const modalTitle = document.getElementById('pullModalTitle');
+                const modalMessage = document.getElementById('pullModalMessage');
+                const modalHeader = document.getElementById('pullModalHeader');
+                
+                modalTitle.innerHTML = '<i class="fas fa-exclamation-triangle"></i> File Pull Error';
+                modalHeader.style.background = '#dc3545';
+                modalHeader.style.color = 'white';
+                modalMessage.textContent = 'Error pulling file: ' + error.message;
+                modal.show();
             }
         }
 
-        function applyFilter() {
-            const filter = document.getElementById('grep-filter').value;
-            if (!filter.trim()) {
-                showAlert('Please enter a filter keyword', 'warning');
+        function showSaveDialog() {
+            // Set default filename with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            document.getElementById('filename-input').value = `adb_logs_${timestamp}`;
+            
+            const modal = new bootstrap.Modal(document.getElementById('saveModal'));
+            modal.show();
+        }
+
+        async function saveLogsWithFilename() {
+            const filename = document.getElementById('filename-input').value.trim();
+            if (!filename) {
+                showAlert('Please enter a filename', 'warning');
                 return;
             }
-            showAlert('Filter applied: ' + filter, 'success');
+            
+            try {
+                const response = await fetch('/api/save-logs', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({filename: filename})
+                });
+                const data = await response.json();
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('saveModal'));
+                modal.hide();
+                
+                showAlert(data.message, data.success ? 'success' : 'danger');
+            } catch (error) {
+                showAlert('Error saving logs: ' + error.message, 'danger');
+            }
+        }
+
+        function applyFilters() {
+            const filter1 = document.getElementById('grep-filter1').value.trim();
+            const filter2 = document.getElementById('grep-filter2').value.trim();
+            const filter3 = document.getElementById('grep-filter3').value.trim();
+            
+            if (!filter1 && !filter2 && !filter3) {
+                showAlert('Please enter at least one filter keyword', 'warning');
+                return;
+            }
+            
+            const filters = [filter1, filter2, filter3].filter(f => f !== '');
+            showAlert(`Filters applied: ${filters.join(', ')}`, 'success');
         }
 
         async function updateLogs() {
