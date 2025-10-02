@@ -10,11 +10,13 @@ import threading
 import time
 import socket
 import select
+import platform
 from datetime import datetime
 from flask import Flask, render_template_string, jsonify, request, send_file
 import queue
 import signal
 import sys
+import re
 
 app = Flask(__name__)
 
