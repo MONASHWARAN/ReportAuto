@@ -553,6 +553,9 @@ class ADBManager:
             self.stop_logging()  # Stop any existing logging
             self.current_device = device_id
             
+            # Add a status message to log buffer for user feedback
+            self.log_buffer.append("[INFO] Starting automatic log detection...\n")
+            
             # Trial and error method - try different log commands
             log_methods = [
                 {
@@ -567,8 +570,9 @@ class ADBManager:
                 }
             ]
             
-            for method in log_methods:
-                print(f"Trying {method['name']} logging method...")
+            for i, method in enumerate(log_methods, 1):
+                self.log_buffer.append(f"[INFO] Trying method {i}/2: {method['name']}...\n")
+                
                 try:
                     # Try to start the log process
                     test_process = subprocess.Popen(method['command'], 
@@ -578,15 +582,13 @@ class ADBManager:
                                                   bufsize=1)
                     
                     # Wait a bit to see if we get any output or error
-                    import select
-                    import time
-                    
-                    # Check if process started successfully
                     time.sleep(2)
+                    
+                    # Check if process is still running
                     if test_process.poll() is not None:
-                        # Process died, try next method
-                        print(f"❌ {method['name']} failed - process terminated")
-                        test_process.terminate()
+                        # Process died, check error output
+                        _, stderr = test_process.communicate(timeout=1)
+                        self.log_buffer.append(f"[ERROR] {method['name']} failed: {stderr.strip()}\n")
                         continue
                     
                     # Check if we can read from stdout (indicates logs are flowing)
@@ -599,31 +601,53 @@ class ADBManager:
                             is_logging = True
                             detected_os = method['os_type']
                             
+                            # Add success message
+                            self.log_buffer.append(f"[SUCCESS] {method['name']} method works! Auto-detected: {detected_os.upper()}\n")
+                            self.log_buffer.append("[INFO] Starting real-time log capture...\n")
+                            
                             # Start background thread to read logs
                             log_thread = threading.Thread(target=self._read_logs, daemon=True)
                             log_thread.start()
                             
-                            print(f"✅ {method['name']} method successful!")
                             return True, f"Started logging for {device_id} using {method['name']} method (Auto-detected: {detected_os.upper()})"
                         else:
                             # No data in 3 seconds, try next method
-                            print(f"⏰ {method['name']} - no logs received, trying next method...")
-                            test_process.terminate()
+                            self.log_buffer.append(f"[WARN] {method['name']} - no logs received in 3 seconds, trying next method...\n")
+                            try:
+                                test_process.terminate()
+                                test_process.wait(timeout=2)
+                            except:
+                                try:
+                                    test_process.kill()
+                                except:
+                                    pass
                             continue
                             
                     except Exception as e:
-                        print(f"❌ {method['name']} error: {str(e)}")
-                        test_process.terminate()
+                        self.log_buffer.append(f"[ERROR] {method['name']} error: {str(e)}\n")
+                        try:
+                            test_process.terminate()
+                            test_process.wait(timeout=2)
+                        except:
+                            try:
+                                test_process.kill()
+                            except:
+                                pass
                         continue
                         
+                except subprocess.TimeoutExpired:
+                    self.log_buffer.append(f"[ERROR] {method['name']} timed out\n")
+                    continue
                 except Exception as e:
-                    print(f"❌ Failed to start {method['name']}: {str(e)}")
+                    self.log_buffer.append(f"[ERROR] Failed to start {method['name']}: {str(e)}\n")
                     continue
             
             # If we get here, all methods failed
+            self.log_buffer.append("[ERROR] All logging methods failed! Check device connection and ADB setup.\n")
             return False, "❌ All logging methods failed. Please check device connection and ADB setup."
             
         except Exception as e:
+            self.log_buffer.append(f"[FATAL ERROR] Logging startup failed: {str(e)}\n")
             return False, f"Failed to start logging: {str(e)}"
     
     def stop_logging(self):
