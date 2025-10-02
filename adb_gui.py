@@ -808,11 +808,14 @@ class ADBManager:
                     if len(self.log_buffer) > 1000:  # Keep last 1000 lines
                         self.log_buffer.pop(0)
                     
-                    # Add to filtered log buffer if matches filter
-                    if self.current_filter and self.current_filter.lower() in line.lower():
-                        self.filtered_log_buffer.append(log_entry)
-                        if len(self.filtered_log_buffer) > 1000:
-                            self.filtered_log_buffer.pop(0)
+                    # Add to filtered log buffer if matches any filter
+                    if self.current_filters:
+                        for filter_keyword in self.current_filters:
+                            if filter_keyword and filter_keyword.lower() in line.lower():
+                                self.filtered_log_buffer.append(log_entry)
+                                if len(self.filtered_log_buffer) > 1000:
+                                    self.filtered_log_buffer.pop(0)
+                                break  # Only add once even if multiple filters match
                 
                 elif log_process.poll() is not None:
                     break
