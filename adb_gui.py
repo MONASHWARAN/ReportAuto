@@ -803,8 +803,15 @@ if __name__ == '__main__':
     print(f"🌐 Access the GUI at: http://localhost:{port}")
     print(f"🌐 Or from network:   http://0.0.0.0:{port}")
     print("="*60)
+    print(f"🔌 Dynamic Port: {port} (Auto-selected)")
     print("📱 Supported Devices: Vega OS, Puffin OS, FOS")
     print("🛠️  Press Ctrl+C to stop the server")
+    print("="*60)
+    print("📋 Features Available:")
+    print("   • Real-time device detection")
+    print("   • Live log monitoring with grep filtering")
+    print("   • CHR.db file extraction for all OS types")
+    print("   • Local file storage with timestamps")
     print("="*60)
     
     try:
