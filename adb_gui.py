@@ -353,6 +353,49 @@ HTML_TEMPLATE = """
         <div id="status-messages" class="mt-3"></div>
     </div>
 
+    <!-- Save Dialog Modal -->
+    <div class="modal fade" id="saveModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background: var(--light-gray); border: 1px solid var(--gold);">
+                <div class="modal-header" style="background: var(--gold); color: var(--black);">
+                    <h5 class="modal-title"><i class="fas fa-save"></i> Save Logs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="filename-input" class="form-label text-light">Filename (will be saved as .txt)</label>
+                        <input type="text" class="form-control" id="filename-input" placeholder="Enter filename without extension">
+                        <div class="form-text text-muted">File will be saved in current directory</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveLogsWithFilename()">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Pull Success Modal -->
+    <div class="modal fade" id="filePullModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background: var(--light-gray); border: 1px solid var(--gold);">
+                <div class="modal-header" id="pullModalHeader">
+                    <h5 class="modal-title" id="pullModalTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="pullModalMessage"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let logInterval = null;
