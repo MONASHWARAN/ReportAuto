@@ -587,7 +587,42 @@ HTML_TEMPLATE = """
             }
             
             const filters = [filter1, filter2, filter3].filter(f => f !== '');
-            showAlert(`Filters applied: ${filters.join(', ')}`, 'success');
+            
+            // Send filters to backend to apply them
+            fetch('/api/apply-filters', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({filters: filters})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(`Filters applied: ${filters.join(', ')}`, 'success');
+                } else {
+                    showAlert('Failed to apply filters: ' + data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                showAlert('Error applying filters: ' + error.message, 'danger');
+            });
+        }
+
+        async function clearLogs() {
+            document.getElementById('all-log-output').textContent = 'Logs cleared.';
+            document.getElementById('filtered-log-output').innerHTML = `
+                <div class="text-muted text-center p-4">
+                    <i class="fas fa-filter fa-2x mb-2"></i><br>
+                    No filtered logs available.<br>
+                    Enter filter keywords and start logging to see matches.
+                </div>
+            `;
+            
+            try {
+                await fetch('/api/clear-logs', {method: 'POST'});
+                showAlert('Logs cleared successfully', 'success');
+            } catch (error) {
+                showAlert('Error clearing logs: ' + error.message, 'danger');
+            }
         }
 
         async function updateLogs() {
