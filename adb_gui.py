@@ -711,7 +711,11 @@ class ADBManager:
             print(f"Error getting devices: {e}")
             return []
     
-    def add_log_entry(self, message, apply_filters=True):
+    def detect_device_os(self, device_id):
+        """Detect device OS type using trial and error log method"""
+        # We'll determine OS type by trying different log commands
+        # This is more reliable than checking properties
+        return 'unknown'  # Will be determined during logging trial
         """Add a log entry and apply filters if needed"""
         timestamp = datetime.now().strftime("%H:%M:%S")
         log_entry = f"[{timestamp}] {message}\n"
