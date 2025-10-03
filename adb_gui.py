@@ -805,7 +805,7 @@ class ADBManager:
                             text=True,
                             bufsize=0,  # Unbuffered for Windows
                             startupinfo=startupinfo,
-                            creationflags=subprocess.CREATE_NO_WINDOW
+                            creationflags=CREATE_NO_WINDOW
                         )
                     else:
                         # Unix/Linux/Mac: Standard approach
@@ -855,7 +855,7 @@ class ADBManager:
                             stdout=subprocess.DEVNULL,
                             stderr=subprocess.PIPE,
                             startupinfo=startupinfo,
-                            creationflags=subprocess.CREATE_NO_WINDOW
+                            creationflags=CREATE_NO_WINDOW
                         )
                         
                         # Wait and check if logs are being written to file
@@ -897,7 +897,7 @@ class ADBManager:
                                 text=True,
                                 bufsize=0,
                                 startupinfo=startupinfo,
-                                creationflags=subprocess.CREATE_NO_WINDOW
+                                creationflags=CREATE_NO_WINDOW
                             )
                         else:
                             # Clean up and try next method
