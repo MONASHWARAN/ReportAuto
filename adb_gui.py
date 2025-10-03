@@ -1055,7 +1055,7 @@ Enter filter keywords and start logging to see matches.
             return False, f"Failed to save logs: {str(e)}"
     
     def pull_chr_file(self, os_type):
-        """Pull CHR.db file based on OS type with trial and error method"""
+        """Pull CHR.db file based on OS type with trial and error method - Windows compatible"""
         try:
             devices = self.get_connected_devices()
             if not devices:
@@ -1070,6 +1070,9 @@ Enter filter keywords and start logging to see matches.
             
             if not device_id:
                 return False, "No active devices found"
+            
+            # Determine ADB executable name based on platform
+            adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             local_filename = f"CHR_{os_type}_{timestamp}.db"
@@ -1098,17 +1101,17 @@ Enter filter keywords and start logging to see matches.
             # Try each path until one works
             for i, remote_path in enumerate(remote_paths, 1):
                 try:
-                    print(f"Trying path {i}/{len(remote_paths)}: {remote_path}")
+                    print(f"Trying path {i}/{len(remote_paths)}: {remote_path} ({self.platform_system})")
                     
                     # Execute ADB pull command
-                    result = subprocess.run(['adb', '-s', device_id, 'pull', remote_path, local_filename], 
+                    result = subprocess.run([adb_cmd, '-s', device_id, 'pull', remote_path, local_filename], 
                                           capture_output=True, text=True, timeout=30)
                     
                     if result.returncode == 0 and os.path.exists(local_filename):
                         # Check if file has actual content (not empty)
                         file_size = os.path.getsize(local_filename)
                         if file_size > 0:
-                            return True, f"✅ Successfully pulled {os_type.upper()} CHR.db to {local_filename} ({file_size} bytes)"
+                            return True, f"✅ Successfully pulled {os_type.upper()} CHR.db to {local_filename} ({file_size} bytes) on {self.platform_system.title()}"
                         else:
                             # File exists but is empty, try next path
                             os.remove(local_filename)
@@ -1120,15 +1123,15 @@ Enter filter keywords and start logging to see matches.
                         continue
                         
                 except subprocess.TimeoutExpired:
-                    return False, f"Pull operation timed out for {os_type}"
+                    return False, f"Pull operation timed out for {os_type} on {self.platform_system.title()}"
                 except Exception as e:
-                    print(f"Error trying path {remote_path}: {str(e)}")
+                    print(f"Error trying path {remote_path} on {self.platform_system}: {str(e)}")
                     continue
             
-            return False, f"❌ Failed to pull {os_type.upper()} CHR.db - file not found in any expected location"
+            return False, f"❌ Failed to pull {os_type.upper()} CHR.db - file not found in any expected location ({self.platform_system.title()})"
                 
         except Exception as e:
-            return False, f"Error pulling CHR file: {str(e)}"
+            return False, f"Error pulling CHR file on {self.platform_system.title()}: {str(e)}"
 
 # Initialize ADB Manager
 adb_manager = ADBManager()
