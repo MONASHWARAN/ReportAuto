@@ -799,7 +799,6 @@ class ADBManager:
                     # Platform-specific subprocess creation
                     if self.platform_system == 'windows':
                         # Windows: Use special flags for better subprocess handling
-                        import subprocess
                         startupinfo = subprocess.STARTUPINFO()
                         startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
                         startupinfo.wShowWindow = subprocess.SW_HIDE
