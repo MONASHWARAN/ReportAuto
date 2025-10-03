@@ -919,13 +919,49 @@ class ADBManager:
         return True, "Logging stopped"
     
     def _read_logs(self):
-        """Background thread to read logs"""
+        """Background thread to read logs - Windows compatible"""
         global log_process, is_logging
         
         while is_logging and log_process:
             try:
-                line = log_process.stdout.readline()
-                if line:
+                # Use a timeout-based approach that works on all platforms
+                line = None
+                
+                if self.platform_system == 'windows':
+                    # Windows: Use polling approach
+                    try:
+                        # Check if process is still alive
+                        if log_process.poll() is not None:
+                            break
+                        
+                        # Try to read with a timeout using threading
+                        import queue
+                        line_queue = queue.Queue()
+                        
+                        def read_line():
+                            try:
+                                line = log_process.stdout.readline()
+                                line_queue.put(line)
+                            except Exception as e:
+                                line_queue.put(None)
+                        
+                        read_thread = threading.Thread(target=read_line, daemon=True)
+                        read_thread.start()
+                        read_thread.join(timeout=1.0)  # 1 second timeout
+                        
+                        try:
+                            line = line_queue.get_nowait()
+                        except queue.Empty:
+                            continue  # No line available, try again
+                            
+                    except Exception as e:
+                        print(f"Windows log reading error: {e}")
+                        break
+                else:
+                    # Unix/Linux/Mac: Use readline with timeout
+                    line = log_process.stdout.readline()
+                
+                if line and line.strip():
                     timestamp = datetime.now().strftime("%H:%M:%S")
                     log_entry = f"[{timestamp}] {line.rstrip()}\n"
                     
@@ -945,11 +981,12 @@ class ADBManager:
                                 print(f"FILTERED LOG MATCH: '{filter_keyword}' found in: {line.strip()}")
                                 break  # Only add once even if multiple filters match
                 
-                elif log_process.poll() is not None:
+                elif log_process and log_process.poll() is not None:
+                    # Process terminated
                     break
                     
             except Exception as e:
-                print(f"Error reading logs: {e}")
+                print(f"Error reading logs ({self.platform_system}): {e}")
                 break
     
     def get_logs(self):
