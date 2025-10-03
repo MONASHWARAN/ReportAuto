@@ -985,75 +985,112 @@ class ADBManager:
         return True, "Logging stopped"
     
     def _read_logs(self):
-        """Background thread to read logs - Windows compatible"""
+        """Background thread to read logs - Windows optimized with non-blocking I/O"""
         global log_process, is_logging
         
         while is_logging and log_process:
             try:
-                # Use a timeout-based approach that works on all platforms
-                line = None
-                
                 if self.platform_system == 'windows':
-                    # Windows: Use polling approach
+                    # Windows: Use non-blocking approach with polling
                     try:
                         # Check if process is still alive
                         if log_process.poll() is not None:
+                            self.add_log_entry("[INFO] Log process terminated")
                             break
                         
-                        # Try to read with a timeout using threading
-                        import queue
-                        line_queue = queue.Queue()
+                        # Windows-specific non-blocking read approach
+                        import msvcrt
+                        import os
                         
-                        def read_line():
-                            try:
-                                line = log_process.stdout.readline()
-                                line_queue.put(line)
-                            except Exception as e:
-                                line_queue.put(None)
-                        
-                        read_thread = threading.Thread(target=read_line, daemon=True)
-                        read_thread.start()
-                        read_thread.join(timeout=1.0)  # 1 second timeout
-                        
+                        # Try to read from stdout pipe
                         try:
-                            line = line_queue.get_nowait()
-                        except queue.Empty:
-                            continue  # No line available, try again
+                            # Use a small timeout approach
+                            ready = False
+                            start_time = time.time()
                             
+                            while time.time() - start_time < 0.5:  # 500ms timeout
+                                if log_process.stdout.readable():
+                                    # Try to read a line
+                                    line = log_process.stdout.readline()
+                                    if line and line.strip():
+                                        ready = True
+                                        break
+                                time.sleep(0.1)  # Small delay to prevent busy waiting
+                            
+                            if ready and line:
+                                timestamp = datetime.now().strftime("%H:%M:%S")
+                                log_entry = f"[{timestamp}] {line.rstrip()}\n"
+                                
+                                # Add to main log buffer
+                                self.log_buffer.append(log_entry)
+                                if len(self.log_buffer) > 1000:
+                                    self.log_buffer.pop(0)
+                                
+                                # Add to filtered log buffer if matches any filter
+                                if self.current_filters:
+                                    for filter_keyword in self.current_filters:
+                                        if filter_keyword and filter_keyword.lower() in line.lower():
+                                            self.filtered_log_buffer.append(log_entry)
+                                            if len(self.filtered_log_buffer) > 1000:
+                                                self.filtered_log_buffer.pop(0)
+                                            print(f"WINDOWS FILTERED LOG MATCH: '{filter_keyword}' found in: {line.strip()}")
+                                            break
+                            else:
+                                # No line available, small delay before next attempt
+                                time.sleep(0.2)
+                                
+                        except Exception as e:
+                            print(f"Windows log reading error: {e}")
+                            # Try alternative approach using peek/read
+                            try:
+                                import io
+                                # Alternative Windows approach
+                                time.sleep(0.5)
+                                continue
+                            except Exception as e2:
+                                print(f"Alternative Windows approach failed: {e2}")
+                                time.sleep(1)
+                                continue
+                                
                     except Exception as e:
-                        print(f"Windows log reading error: {e}")
-                        break
+                        print(f"Windows log reading outer error: {e}")
+                        time.sleep(1)
+                        continue
+                
                 else:
-                    # Unix/Linux/Mac: Use readline with timeout
+                    # Unix/Linux/Mac: Use standard readline approach
                     line = log_process.stdout.readline()
-                
-                if line and line.strip():
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    log_entry = f"[{timestamp}] {line.rstrip()}\n"
                     
-                    # Add to main log buffer
-                    self.log_buffer.append(log_entry)
-                    if len(self.log_buffer) > 1000:  # Keep last 1000 lines
-                        self.log_buffer.pop(0)
+                    if line and line.strip():
+                        timestamp = datetime.now().strftime("%H:%M:%S")
+                        log_entry = f"[{timestamp}] {line.rstrip()}\n"
+                        
+                        # Add to main log buffer
+                        self.log_buffer.append(log_entry)
+                        if len(self.log_buffer) > 1000:  # Keep last 1000 lines
+                            self.log_buffer.pop(0)
+                        
+                        # Add to filtered log buffer if matches any filter
+                        if self.current_filters:
+                            for filter_keyword in self.current_filters:
+                                if filter_keyword and filter_keyword.lower() in line.lower():
+                                    # Add the log entry to filtered buffer
+                                    self.filtered_log_buffer.append(log_entry)
+                                    if len(self.filtered_log_buffer) > 1000:
+                                        self.filtered_log_buffer.pop(0)
+                                    print(f"UNIX FILTERED LOG MATCH: '{filter_keyword}' found in: {line.strip()}")
+                                    break  # Only add once even if multiple filters match
                     
-                    # Add to filtered log buffer if matches any filter
-                    if self.current_filters:
-                        for filter_keyword in self.current_filters:
-                            if filter_keyword and filter_keyword.lower() in line.lower():
-                                # Add the log entry to filtered buffer
-                                self.filtered_log_buffer.append(log_entry)
-                                if len(self.filtered_log_buffer) > 1000:
-                                    self.filtered_log_buffer.pop(0)
-                                print(f"FILTERED LOG MATCH: '{filter_keyword}' found in: {line.strip()}")
-                                break  # Only add once even if multiple filters match
-                
-                elif log_process and log_process.poll() is not None:
-                    # Process terminated
-                    break
-                    
+                    elif log_process and log_process.poll() is not None:
+                        # Process terminated
+                        break
+                        
             except Exception as e:
                 print(f"Error reading logs ({self.platform_system}): {e}")
-                break
+                time.sleep(1)
+                continue
+        
+        print(f"Log reading thread terminated ({self.platform_system})")
     
     def get_logs(self):
         """Get current logs"""
