@@ -1027,7 +1027,7 @@ class ADBManager:
             self._read_logs_unix()
     
     def _read_logs_windows(self):
-        """Windows-specific log reading using temporary file"""
+        """Windows-specific log reading using temporary file with specific log patterns"""
         global log_process, is_logging
         
         try:
@@ -1036,9 +1036,9 @@ class ADBManager:
             import os
             
             temp_dir = tempfile.gettempdir()
-            log_file_path = os.path.join(temp_dir, f"adb_gui_logs_{os.getpid()}.txt")
+            log_file_path = os.path.join(temp_dir, f"adb_gui_filtered_logs_{os.getpid()}.txt")
             
-            # Restart the log process with file output
+            # Restart the log process with file output and specific filtering
             if log_process:
                 try:
                     log_process.terminate()
@@ -1046,11 +1046,17 @@ class ADBManager:
                 except:
                     pass
             
-            # Determine command based on device and OS
-            adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
-            
-            # Start process with output redirected to file
-            cmd = f'{adb_cmd} -s {self.current_device} logcat > "{log_file_path}"'
+            # Determine command based on current log method from start_logging
+            if hasattr(self, 'current_log_method') and self.current_log_method:
+                # Use the command from the successful detection method
+                cmd = f'{self.current_log_method["command"]} > "{log_file_path}"'
+                self.add_log_entry(f"[INFO] Windows: Using detected method - {self.current_log_method['name']}")
+            else:
+                # Fallback to FOS logcat with filtering
+                adb_cmd = 'adb.exe'
+                filter_args = '/I /C:"CosineSimilarityCache::LookupImpl" /C:"eventType=Speech" /C:"RESULT_GENERATOR" /C:"Calling onCacheUpdate"'
+                cmd = f'{adb_cmd} -s {self.current_device} shell "logcat | findstr {filter_args}" > "{log_file_path}"'
+                self.add_log_entry("[INFO] Windows: Using fallback FOS filtered logcat method")
             
             startupinfo = subprocess.STARTUPINFO()
             startupinfo.dwFlags |= STARTF_USESHOWWINDOW
@@ -1060,13 +1066,15 @@ class ADBManager:
                 cmd,
                 shell=True,
                 startupinfo=startupinfo,
-                creationflags=subprocess.CREATE_NO_WINDOW
+                creationflags=CREATE_NO_WINDOW
             )
             
-            self.add_log_entry(f"[INFO] Windows: Starting file-based log capture to {log_file_path}")
+            self.add_log_entry(f"[INFO] Windows: Starting filtered log capture to {log_file_path}")
+            self.add_log_entry("[INFO] Windows: Filtering for specific patterns using findstr")
             
             # Tail the file
             last_size = 0
+            no_content_count = 0
             while is_logging and log_process and log_process.poll() is None:
                 try:
                     if os.path.exists(log_file_path):
@@ -1077,6 +1085,7 @@ class ADBManager:
                                 f.seek(last_size)
                                 new_content = f.read()
                                 last_size = current_size
+                                no_content_count = 0  # Reset no content counter
                                 
                                 # Process new lines
                                 for line in new_content.split('\n'):
@@ -1089,7 +1098,7 @@ class ADBManager:
                                         if len(self.log_buffer) > 1000:
                                             self.log_buffer.pop(0)
                                         
-                                        # Apply filters
+                                        # Apply additional user filters on top of the base filtering
                                         if self.current_filters:
                                             for filter_keyword in self.current_filters:
                                                 if filter_keyword and filter_keyword.lower() in line.lower():
@@ -1098,11 +1107,25 @@ class ADBManager:
                                                         self.filtered_log_buffer.pop(0)
                                                     print(f"WINDOWS FILTER MATCH: '{filter_keyword}' in: {line[:50]}...")
                                                     break
+                                        else:
+                                            # If no user filters, show all filtered logs (base patterns already filtered)
+                                            self.filtered_log_buffer.append(log_entry)
+                                            if len(self.filtered_log_buffer) > 1000:
+                                                self.filtered_log_buffer.pop(0)
+                        else:
+                            no_content_count += 1
+                            if no_content_count == 20:  # After 10 seconds of no content
+                                self.add_log_entry("[INFO] Windows: Waiting for matching log patterns...")
+                                no_content_count = 0
+                    else:
+                        # Log file doesn't exist yet
+                        self.add_log_entry("[INFO] Windows: Waiting for log file creation...")
                     
                     time.sleep(0.5)  # Check every 500ms
                     
                 except Exception as e:
                     print(f"Windows file reading error: {e}")
+                    self.add_log_entry(f"[ERROR] Windows file reading error: {str(e)}")
                     time.sleep(1)
                     continue
             
@@ -1110,13 +1133,14 @@ class ADBManager:
             try:
                 if os.path.exists(log_file_path):
                     os.unlink(log_file_path)
+                    self.add_log_entry("[INFO] Windows: Cleaned up temporary log file")
             except:
                 pass
                 
         except Exception as e:
-            self.add_log_entry(f"[ERROR] Windows log reading failed: {str(e)}")
+            self.add_log_entry(f"[ERROR] Windows filtered log reading failed: {str(e)}")
         
-        print("Windows log reading thread terminated")
+        print("Windows filtered log reading thread terminated")
     
     def _read_logs_unix(self):
         """Unix/Linux/Mac log reading using pipes"""
