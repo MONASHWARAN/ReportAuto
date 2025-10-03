@@ -18,6 +18,19 @@ import signal
 import sys
 import re
 
+# Windows-specific subprocess constants
+if platform.system().lower() == 'windows':
+    try:
+        # These constants are available in subprocess module on Windows
+        STARTF_USESHOWWINDOW = subprocess.STARTF_USESHOWWINDOW
+        SW_HIDE = subprocess.SW_HIDE  
+        CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW
+    except AttributeError:
+        # Fallback values if not available
+        STARTF_USESHOWWINDOW = 0x00000001
+        SW_HIDE = 0
+        CREATE_NO_WINDOW = 0x08000000
+
 app = Flask(__name__)
 
 # Global variables for log management
