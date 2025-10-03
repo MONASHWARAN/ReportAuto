@@ -745,24 +745,6 @@ class ADBManager:
                         self.filtered_log_buffer.pop(0)
                     print(f"FILTERED LOG MATCH: '{filter_keyword}' found in: {message.strip()}")
                     break
-        """Add a log entry and apply filters if needed"""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        log_entry = f"[{timestamp}] {message}\n"
-        
-        # Add to main log buffer
-        self.log_buffer.append(log_entry)
-        if len(self.log_buffer) > 1000:
-            self.log_buffer.pop(0)
-        
-        # Apply filters if requested
-        if apply_filters and self.current_filters:
-            for filter_keyword in self.current_filters:
-                if filter_keyword and filter_keyword.lower() in message.lower():
-                    self.filtered_log_buffer.append(log_entry)
-                    if len(self.filtered_log_buffer) > 1000:
-                        self.filtered_log_buffer.pop(0)
-                    print(f"FILTERED LOG MATCH: '{filter_keyword}' found in: {message.strip()}")
-                    break
     
     def start_logging(self, device_id):
         """Start logging for specified device using trial and error method"""
