@@ -795,8 +795,8 @@ class ADBManager:
                     if self.platform_system == 'windows':
                         # Windows: Use special flags for better subprocess handling
                         startupinfo = subprocess.STARTUPINFO()
-                        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                        startupinfo.wShowWindow = subprocess.SW_HIDE
+                        startupinfo.dwFlags |= STARTF_USESHOWWINDOW
+                        startupinfo.wShowWindow = SW_HIDE
                         
                         test_process = subprocess.Popen(
                             method['command'], 
