@@ -766,16 +766,19 @@ class ADBManager:
             # Add a status message to log buffer for user feedback
             self.add_log_entry("[INFO] Starting automatic log detection...")
             
+            # Determine ADB executable name based on platform
+            adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
+            
             # Trial and error method - try different log commands
             log_methods = [
                 {
                     'name': 'FOS/Puffin (logcat)',
-                    'command': ['adb', '-s', device_id, 'logcat'],
+                    'command': [adb_cmd, '-s', device_id, 'logcat'],
                     'os_type': 'fos'
                 },
                 {
                     'name': 'Vega (journalctl)',
-                    'command': ['adb', '-s', device_id, 'shell', 'journalctl', '-f'],
+                    'command': [adb_cmd, '-s', device_id, 'shell', 'journalctl', '-f'],
                     'os_type': 'vega'
                 }
             ]
@@ -797,44 +800,81 @@ class ADBManager:
                     # Check if process is still running
                     if test_process.poll() is not None:
                         # Process died, check error output
-                        _, stderr = test_process.communicate(timeout=1)
+                        try:
+                            _, stderr = test_process.communicate(timeout=1)
+                        except subprocess.TimeoutExpired:
+                            test_process.kill()
+                            stderr = "Process timeout"
                         self.add_log_entry(f"[ERROR] {method['name']} failed: {stderr.strip()}")
                         continue
                     
-                    # Check if we can read from stdout (indicates logs are flowing)
-                    try:
-                        # Use select to check if data is available without blocking
-                        ready, _, _ = select.select([test_process.stdout], [], [], 3)
-                        if ready:
-                            # We have data available, this method works!
-                            log_process = test_process
-                            is_logging = True
-                            detected_os = method['os_type']
-                            
-                            # Add success message
-                            self.add_log_entry(f"[SUCCESS] {method['name']} method works! Auto-detected: {detected_os.upper()}")
-                            self.add_log_entry("[INFO] Starting real-time log capture...")
-                            
-                            # Start background thread to read logs
-                            log_thread = threading.Thread(target=self._read_logs, daemon=True)
-                            log_thread.start()
-                            
-                            return True, f"Started logging for {device_id} using {method['name']} method (Auto-detected: {detected_os.upper()})"
-                        else:
-                            # No data in 3 seconds, try next method
-                            self.add_log_entry(f"[WARN] {method['name']} - no logs received in 3 seconds, trying next method...")
+                    # Platform-specific method to check if logs are available
+                    logs_available = False
+                    
+                    if self.platform_system == 'windows':
+                        # Windows: Use threading approach instead of select
+                        self.add_log_entry(f"[INFO] Windows detected - using threading approach for {method['name']}")
+                        
+                        # Start a temporary thread to check if we can read logs
+                        import queue
+                        log_queue = queue.Queue()
+                        
+                        def read_first_line():
                             try:
-                                test_process.terminate()
-                                test_process.wait(timeout=2)
+                                line = test_process.stdout.readline()
+                                if line:
+                                    log_queue.put(line)
                             except:
-                                try:
-                                    test_process.kill()
-                                except:
-                                    pass
-                            continue
-                            
-                    except Exception as e:
-                        self.add_log_entry(f"[ERROR] {method['name']} error: {str(e)}")
+                                log_queue.put(None)
+                        
+                        read_thread = threading.Thread(target=read_first_line, daemon=True)
+                        read_thread.start()
+                        read_thread.join(timeout=3)
+                        
+                        try:
+                            first_line = log_queue.get_nowait()
+                            if first_line:
+                                logs_available = True
+                                # Put the line back by adding it to our log buffer
+                                timestamp = datetime.now().strftime("%H:%M:%S")
+                                log_entry = f"[{timestamp}] {first_line.rstrip()}\n"
+                                self.log_buffer.append(log_entry)
+                                # Apply filters to this first line too
+                                if self.current_filters:
+                                    for filter_keyword in self.current_filters:
+                                        if filter_keyword and filter_keyword.lower() in first_line.lower():
+                                            self.filtered_log_buffer.append(log_entry)
+                                            break
+                        except queue.Empty:
+                            logs_available = False
+                    
+                    else:
+                        # Unix/Linux/Mac: Use select as before
+                        try:
+                            ready, _, _ = select.select([test_process.stdout], [], [], 3)
+                            logs_available = bool(ready)
+                        except Exception as e:
+                            self.add_log_entry(f"[ERROR] Select failed: {str(e)}")
+                            logs_available = False
+                    
+                    if logs_available:
+                        # We have data available, this method works!
+                        log_process = test_process
+                        is_logging = True
+                        detected_os = method['os_type']
+                        
+                        # Add success message
+                        self.add_log_entry(f"[SUCCESS] {method['name']} method works! Auto-detected: {detected_os.upper()}")
+                        self.add_log_entry("[INFO] Starting real-time log capture...")
+                        
+                        # Start background thread to read logs
+                        log_thread = threading.Thread(target=self._read_logs, daemon=True)
+                        log_thread.start()
+                        
+                        return True, f"Started logging for {device_id} using {method['name']} method (Auto-detected: {detected_os.upper()})"
+                    else:
+                        # No data received, try next method
+                        self.add_log_entry(f"[WARN] {method['name']} - no logs received in 3 seconds, trying next method...")
                         try:
                             test_process.terminate()
                             test_process.wait(timeout=2)
