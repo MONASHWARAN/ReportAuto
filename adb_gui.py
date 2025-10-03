@@ -1016,8 +1016,8 @@ class ADBManager:
             cmd = f'{adb_cmd} -s {self.current_device} logcat > "{log_file_path}"'
             
             startupinfo = subprocess.STARTUPINFO()
-            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-            startupinfo.wShowWindow = subprocess.SW_HIDE
+            startupinfo.dwFlags |= STARTF_USESHOWWINDOW
+            startupinfo.wShowWindow = SW_HIDE
             
             log_process = subprocess.Popen(
                 cmd,
