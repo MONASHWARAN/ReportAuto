@@ -687,12 +687,16 @@ class ADBManager:
         self.platform_system = platform.system().lower()  # Detect OS for grep/findstr
         
     def get_connected_devices(self):
-        """Get list of connected ADB devices"""
+        """Get list of connected ADB devices - Windows compatible"""
         try:
-            result = subprocess.run(['adb', 'devices'], 
+            # Determine ADB executable name based on platform
+            adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
+            
+            result = subprocess.run([adb_cmd, 'devices'], 
                                   capture_output=True, text=True, timeout=10)
             
             if result.returncode != 0:
+                print(f"ADB devices command failed: {result.stderr}")
                 return []
             
             devices = []
@@ -706,9 +710,14 @@ class ADBManager:
                         status = parts[1]
                         devices.append({'id': device_id, 'status': status})
             
+            print(f"Found {len(devices)} ADB devices ({self.platform_system})")
             return devices
+            
+        except FileNotFoundError:
+            print(f"ADB executable not found. Make sure ADB is installed and in PATH ({self.platform_system})")
+            return []
         except Exception as e:
-            print(f"Error getting devices: {e}")
+            print(f"Error getting devices ({self.platform_system}): {e}")
             return []
     
     def detect_device_os(self, device_id):
