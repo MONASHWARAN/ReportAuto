@@ -796,14 +796,34 @@ class ADBManager:
                 self.add_log_entry(f"[INFO] Trying method {i}/2: {method['name']}...")
                 
                 try:
-                    # Try to start the log process
-                    test_process = subprocess.Popen(method['command'], 
-                                                  stdout=subprocess.PIPE, 
-                                                  stderr=subprocess.PIPE,
-                                                  text=True,
-                                                  bufsize=1)
+                    # Platform-specific subprocess creation
+                    if self.platform_system == 'windows':
+                        # Windows: Use special flags for better subprocess handling
+                        import subprocess
+                        startupinfo = subprocess.STARTUPINFO()
+                        startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                        startupinfo.wShowWindow = subprocess.SW_HIDE
+                        
+                        test_process = subprocess.Popen(
+                            method['command'], 
+                            stdout=subprocess.PIPE, 
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            bufsize=0,  # Unbuffered for Windows
+                            startupinfo=startupinfo,
+                            creationflags=subprocess.CREATE_NO_WINDOW
+                        )
+                    else:
+                        # Unix/Linux/Mac: Standard approach
+                        test_process = subprocess.Popen(
+                            method['command'], 
+                            stdout=subprocess.PIPE, 
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            bufsize=1
+                        )
                     
-                    # Wait a bit to see if we get any output or error
+                    # Give process time to start
                     time.sleep(2)
                     
                     # Check if process is still running
@@ -813,68 +833,104 @@ class ADBManager:
                             _, stderr = test_process.communicate(timeout=1)
                         except subprocess.TimeoutExpired:
                             test_process.kill()
-                            stderr = "Process timeout"
+                            stderr = "Process timeout during error check"
                         self.add_log_entry(f"[ERROR] {method['name']} failed: {stderr.strip()}")
                         continue
                     
-                    # Platform-specific method to check if logs are available
+                    # Platform-specific log availability check
                     logs_available = False
                     
                     if self.platform_system == 'windows':
-                        # Windows: Use threading approach instead of select
-                        self.add_log_entry(f"[INFO] Windows detected - using threading approach for {method['name']}")
+                        # Windows: Use file-based approach for reliable log capture
+                        self.add_log_entry(f"[INFO] Windows detected - testing {method['name']} with file-based approach")
                         
-                        # Start a temporary thread to check if we can read logs
-                        import queue
-                        log_queue = queue.Queue()
+                        # Create a temporary file for log capture
+                        import tempfile
+                        temp_log_file = tempfile.NamedTemporaryFile(mode='w+', delete=False, suffix='.log')
+                        temp_log_file.close()
                         
-                        def read_first_line():
-                            try:
-                                line = test_process.stdout.readline()
-                                if line:
-                                    log_queue.put(line)
-                            except:
-                                log_queue.put(None)
+                        # Kill the test process and start a new one with file redirection
+                        test_process.terminate()
+                        time.sleep(1)
                         
-                        read_thread = threading.Thread(target=read_first_line, daemon=True)
-                        read_thread.start()
-                        read_thread.join(timeout=3)
+                        # Start process with output redirection
+                        redirect_cmd = method['command'] + ['>', temp_log_file.name]
+                        file_process = subprocess.Popen(
+                            ' '.join(redirect_cmd),
+                            shell=True,
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.PIPE,
+                            startupinfo=startupinfo,
+                            creationflags=subprocess.CREATE_NO_WINDOW
+                        )
+                        
+                        # Wait and check if logs are being written to file
+                        time.sleep(3)
                         
                         try:
-                            first_line = log_queue.get_nowait()
-                            if first_line:
-                                logs_available = True
-                                # Put the line back by adding it to our log buffer
-                                timestamp = datetime.now().strftime("%H:%M:%S")
-                                log_entry = f"[{timestamp}] {first_line.rstrip()}\n"
-                                self.log_buffer.append(log_entry)
-                                # Apply filters to this first line too
-                                if self.current_filters:
-                                    for filter_keyword in self.current_filters:
-                                        if filter_keyword and filter_keyword.lower() in first_line.lower():
-                                            self.filtered_log_buffer.append(log_entry)
-                                            break
-                        except queue.Empty:
-                            logs_available = False
+                            with open(temp_log_file.name, 'r') as f:
+                                content = f.read().strip()
+                                if content:
+                                    logs_available = True
+                                    self.add_log_entry(f"[SUCCESS] {method['name']} producing logs to file!")
+                                    # Add some sample content to show it's working
+                                    lines = content.split('\n')[:3]
+                                    for line in lines:
+                                        if line.strip():
+                                            self.add_log_entry(f"[SAMPLE] {line.strip()}")
+                        except Exception as e:
+                            self.add_log_entry(f"[ERROR] Could not read log file: {str(e)}")
+                        
+                        if logs_available:
+                            # Clean up test file
+                            try:
+                                import os
+                                os.unlink(temp_log_file.name)
+                            except:
+                                pass
+                            
+                            # Kill file process and start normal process
+                            try:
+                                file_process.terminate()
+                            except:
+                                pass
+                            
+                            # Start the actual logging process
+                            log_process = subprocess.Popen(
+                                method['command'], 
+                                stdout=subprocess.PIPE, 
+                                stderr=subprocess.PIPE,
+                                text=True,
+                                bufsize=0,
+                                startupinfo=startupinfo,
+                                creationflags=subprocess.CREATE_NO_WINDOW
+                            )
+                        else:
+                            # Clean up and try next method
+                            try:
+                                file_process.terminate()
+                                os.unlink(temp_log_file.name)
+                            except:
+                                pass
                     
                     else:
                         # Unix/Linux/Mac: Use select as before
                         try:
                             ready, _, _ = select.select([test_process.stdout], [], [], 3)
                             logs_available = bool(ready)
+                            if logs_available:
+                                log_process = test_process
                         except Exception as e:
                             self.add_log_entry(f"[ERROR] Select failed: {str(e)}")
                             logs_available = False
                     
                     if logs_available:
-                        # We have data available, this method works!
-                        log_process = test_process
                         is_logging = True
                         detected_os = method['os_type']
                         
                         # Add success message
                         self.add_log_entry(f"[SUCCESS] {method['name']} method works! Auto-detected: {detected_os.upper()}")
-                        self.add_log_entry("[INFO] Starting real-time log capture...")
+                        self.add_log_entry(f"[INFO] Starting real-time log capture on {self.platform_system.title()}")
                         
                         # Start background thread to read logs
                         log_thread = threading.Thread(target=self._read_logs, daemon=True)
@@ -883,7 +939,7 @@ class ADBManager:
                         return True, f"Started logging for {device_id} using {method['name']} method (Auto-detected: {detected_os.upper()})"
                     else:
                         # No data received, try next method
-                        self.add_log_entry(f"[WARN] {method['name']} - no logs received in 3 seconds, trying next method...")
+                        self.add_log_entry(f"[WARN] {method['name']} - no logs received, trying next method...")
                         try:
                             test_process.terminate()
                             test_process.wait(timeout=2)
@@ -903,6 +959,7 @@ class ADBManager:
             
             # If we get here, all methods failed
             self.add_log_entry("[ERROR] All logging methods failed! Check device connection and ADB setup.")
+            self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, ADB Command: {adb_cmd}")
             return False, "❌ All logging methods failed. Please check device connection and ADB setup."
             
         except Exception as e:
