@@ -1144,8 +1144,10 @@ class ADBManager:
         print("Windows filtered log reading thread terminated")
     
     def _read_logs_unix(self):
-        """Unix/Linux/Mac log reading using pipes"""
+        """Unix/Linux/Mac log reading using pipes with specific log patterns"""
         global log_process, is_logging
+        
+        self.add_log_entry("[INFO] Unix: Starting filtered log reading with grep patterns")
         
         while is_logging and log_process:
             try:
@@ -1160,7 +1162,7 @@ class ADBManager:
                     if len(self.log_buffer) > 1000:  # Keep last 1000 lines
                         self.log_buffer.pop(0)
                     
-                    # Add to filtered log buffer if matches any filter
+                    # Apply additional user filters on top of base filtering
                     if self.current_filters:
                         for filter_keyword in self.current_filters:
                             if filter_keyword and filter_keyword.lower() in line.lower():
@@ -1170,16 +1172,23 @@ class ADBManager:
                                     self.filtered_log_buffer.pop(0)
                                 print(f"UNIX FILTER MATCH: '{filter_keyword}' in: {line[:50]}...")
                                 break  # Only add once even if multiple filters match
+                    else:
+                        # If no user filters, show all filtered logs (base patterns already filtered)
+                        self.filtered_log_buffer.append(log_entry)
+                        if len(self.filtered_log_buffer) > 1000:
+                            self.filtered_log_buffer.pop(0)
                 
                 elif log_process and log_process.poll() is not None:
                     # Process terminated
+                    self.add_log_entry("[INFO] Unix: Log process terminated")
                     break
                     
             except Exception as e:
-                print(f"Unix log reading error: {e}")
+                print(f"Unix filtered log reading error: {e}")
+                self.add_log_entry(f"[ERROR] Unix filtered log reading error: {str(e)}")
                 break
         
-        print("Unix log reading thread terminated")
+        print("Unix filtered log reading thread terminated")
     
     def get_logs(self):
         """Get current logs"""
