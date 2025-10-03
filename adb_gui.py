@@ -1254,14 +1254,23 @@ if __name__ == '__main__':
     print(f"🌐 Or from network:   http://0.0.0.0:{port}")
     print("="*60)
     print(f"🔌 Dynamic Port: {port} (Auto-selected)")
+    print(f"💻 Platform: {platform.system()} ({platform.platform()})")
+    print(f"🔧 ADB Command: {'adb.exe' if platform.system().lower() == 'windows' else 'adb'}")
     print("📱 Supported Devices: Vega OS, Puffin OS, FOS")
     print("🛠️  Press Ctrl+C to stop the server")
     print("="*60)
     print("📋 Features Available:")
     print("   • Real-time device detection")
-    print("   • Live log monitoring with grep filtering")
+    print("   • Cross-platform log monitoring (Windows/Mac/Linux)")
+    print("   • Multi-filter grep support (3 filter inputs)")
     print("   • CHR.db file extraction for all OS types")
     print("   • Local file storage with timestamps")
+    if platform.system().lower() == 'windows':
+        print("   • Windows: Uses threading-based log capture")
+        print("   • Windows: Looks for adb.exe in PATH")
+    else:
+        print("   • Unix/Linux/Mac: Uses select-based log capture")
+        print("   • Unix/Linux/Mac: Uses standard adb command")
     print("="*60)
     
     try:
