@@ -957,6 +957,8 @@ class ADBManager:
         global log_process, is_logging
         
         is_logging = False
+        self.is_logging_active = False
+        
         if log_process:
             try:
                 log_process.terminate()
