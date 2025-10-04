@@ -1205,8 +1205,12 @@ Enter filter keywords and start logging to see matches.
         self.filtered_log_buffer.clear()
     
     def save_logs(self, custom_filename=None):
-        """Save current logs to file with custom filename"""
+        """Save current logs to file with custom filename and validation"""
         try:
+            # Check if there are any logs to save
+            if not self.log_buffer:
+                return False, "❌ No logs to save. Start logging first to capture logs."
+            
             if custom_filename:
                 # Use custom filename, ensure .txt extension
                 if not custom_filename.endswith('.txt'):
@@ -1220,12 +1224,15 @@ Enter filter keywords and start logging to see matches.
             
             with open(filename, 'w') as f:
                 f.write(f"ADB Logs - Generated: {datetime.now()}\n")
+                f.write(f"Platform: {self.platform_system.title()}\n")
+                f.write(f"Total log entries: {len(self.log_buffer)}\n")
                 f.write("="*50 + "\n\n")
                 f.writelines(self.log_buffer)
             
-            return True, f"Logs saved to {filename}"
+            file_size = os.path.getsize(filename)
+            return True, f"✅ {len(self.log_buffer)} log entries saved to {filename} ({file_size} bytes)"
         except Exception as e:
-            return False, f"Failed to save logs: {str(e)}"
+            return False, f"❌ Failed to save logs: {str(e)}"
     
     def pull_chr_file(self, os_type):
         """Pull CHR.db file based on OS type with trial and error method - Windows compatible"""
