@@ -699,6 +699,8 @@ class ADBManager:
         self.current_filters = []  # Changed to support multiple filters
         self.platform_system = platform.system().lower()  # Detect OS for grep/findstr
         self.current_log_method = None  # Store the successful log method
+        self.is_logging_active = False  # Track logging state
+        self.log_process_pid = None  # Track process for cleanup
         
     def get_connected_devices(self):
         """Get list of connected ADB devices - Windows compatible"""
