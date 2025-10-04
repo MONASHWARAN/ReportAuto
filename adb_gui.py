@@ -953,24 +953,49 @@ class ADBManager:
             return False, f"Failed to start logging: {str(e)}"
     
     def stop_logging(self):
-        """Stop current logging"""
+        """Stop current logging with proper state cleanup"""
         global log_process, is_logging
         
-        is_logging = False
-        self.is_logging_active = False
-        
-        if log_process:
-            try:
-                log_process.terminate()
-                log_process.wait(timeout=2)
-            except:
+        try:
+            was_logging = self.is_logging_active or is_logging
+            
+            # Stop logging flags
+            is_logging = False
+            self.is_logging_active = False
+            
+            # Cleanup process
+            if log_process:
                 try:
-                    log_process.kill()
-                except:
-                    pass
-            log_process = None
-        
-        return True, "Logging stopped"
+                    self.add_log_entry(f"[INFO] Stopping log process (PID: {log_process.pid})")
+                    log_process.terminate()
+                    log_process.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    try:
+                        self.add_log_entry("[WARN] Force killing log process")
+                        log_process.kill()
+                        log_process.wait(timeout=2)
+                    except:
+                        pass
+                except Exception as e:
+                    self.add_log_entry(f"[WARN] Error stopping process: {str(e)}")
+                
+                log_process = None
+                self.log_process_pid = None
+            
+            # Reset state variables
+            self.current_device = None
+            self.current_log_method = None
+            
+            if was_logging:
+                self.add_log_entry("[INFO] Logging stopped successfully")
+                return True, "✅ Logging stopped successfully"
+            else:
+                return True, "ℹ️ No active logging to stop"
+                
+        except Exception as e:
+            self.is_logging_active = False
+            is_logging = False
+            return False, f"❌ Error stopping logging: {str(e)}"
     
     def _read_logs(self):
         """Background thread to read logs - Windows uses file tailing, Unix uses pipes"""
