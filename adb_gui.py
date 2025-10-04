@@ -805,7 +805,7 @@ class ADBManager:
             ]
             
             self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, Using {filter_cmd} for filtering")
-            self.add_log_entry(f"[INFO] Target patterns: CosineSimilarityCache, eventType=Speech, RESULT_GENERATOR, onCacheUpdate")
+            self.add_log_entry("[INFO] Target patterns: CosineSimilarityCache, eventType=Speech, RESULT_GENERATOR, onCacheUpdate")
             
             for i, method in enumerate(log_methods, 1):
                 self.add_log_entry(f"[INFO] Trying method {i}/2: {method['name']}...")
