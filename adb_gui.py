@@ -1193,10 +1193,19 @@ Enter filter keywords and start logging to see matches.
         return all_logs, filtered_logs
     
     def clear_logs(self):
-        """Clear log buffers"""
+        """Clear log buffers with validation"""
+        log_count = len(self.log_buffer)
+        filtered_count = len(self.filtered_log_buffer)
+        
+        if log_count == 0 and filtered_count == 0:
+            print("No logs to clear")
+            return "ℹ️ No logs to clear"
+        
         self.log_buffer.clear()
         self.filtered_log_buffer.clear()
-        print(f"Logs cleared. Active filters: {self.current_filters}")
+        
+        print(f"Cleared {log_count} main logs and {filtered_count} filtered logs")
+        return f"✅ Cleared {log_count} main logs and {filtered_count} filtered logs"
     
     def set_filters(self, filter_keywords):
         """Set multiple log filters"""
