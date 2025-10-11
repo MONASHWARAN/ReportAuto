@@ -792,16 +792,33 @@ class ADBManager:
             self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, Using {filter_cmd} for filtering")
             self.add_log_entry(f"[INFO] Device: {device_id}")
             
-            # Test device connectivity first
-            try:
-                test_result = subprocess.run([adb_cmd, '-s', device_id, 'shell', 'echo', 'test'], 
-                                           capture_output=True, text=True, timeout=5)
-                if test_result.returncode != 0:
-                    self.is_logging_active = False
-                    return False, f"❌ Cannot connect to device {device_id}. Check device connection and USB debugging."
-            except Exception as e:
+            # Test device connectivity with enhanced validation
+            connectivity_ok = False
+            for test_attempt in range(3):  # Try 3 times
+                try:
+                    self.add_log_entry(f"[INFO] Testing device connectivity (attempt {test_attempt + 1}/3)")
+                    test_result = subprocess.run([adb_cmd, '-s', device_id, 'shell', 'echo', 'connectivity_test'], 
+                                               capture_output=True, text=True, timeout=8)
+                    if test_result.returncode == 0 and 'connectivity_test' in test_result.stdout:
+                        connectivity_ok = True
+                        self.add_log_entry(f"[SUCCESS] Device connectivity confirmed")
+                        break
+                    else:
+                        if test_attempt < 2:
+                            self.add_log_entry(f"[WARN] Connectivity test failed, retrying...")
+                            time.sleep(2)
+                        else:
+                            self.add_log_entry(f"[ERROR] Device connectivity failed after 3 attempts")
+                except Exception as e:
+                    if test_attempt < 2:
+                        self.add_log_entry(f"[WARN] Connectivity error: {str(e)}, retrying...")
+                        time.sleep(2)
+                    else:
+                        self.add_log_entry(f"[ERROR] Final connectivity test failed: {str(e)}")
+            
+            if not connectivity_ok:
                 self.is_logging_active = False
-                return False, f"❌ Device connectivity test failed: {str(e)}"
+                return False, f"❌ Cannot establish reliable connection to device {device_id}. Check device connection, USB debugging, and ADB setup."
             
             # Platform-specific log methods with proper Windows handling
             if self.platform_system == 'windows':
