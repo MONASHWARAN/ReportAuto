@@ -1475,78 +1475,109 @@ def get_devices():
 
 @app.route('/api/start-logging', methods=['POST'])
 def start_logging():
-    """API endpoint to start logging"""
-    data = request.get_json()
-    device_id = data.get('device_id')
-    
-    if not device_id:
-        return jsonify({'success': False, 'message': 'Device ID required'})
-    
-    success, message = adb_manager.start_logging(device_id)
-    return jsonify({'success': success, 'message': message})
+    """API endpoint to start logging with validation"""
+    try:
+        data = request.get_json()
+        device_id = data.get('device_id', '').strip() if data else ''
+        
+        if not device_id:
+            return jsonify({'success': False, 'message': '❌ Device ID is required to start logging'})
+        
+        success, message = adb_manager.start_logging(device_id)
+        return jsonify({'success': success, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error starting logging: {str(e)}'})
 
 @app.route('/api/stop-logging', methods=['POST'])
 def stop_logging():
-    """API endpoint to stop logging"""
-    success, message = adb_manager.stop_logging()
-    return jsonify({'success': success, 'message': message})
+    """API endpoint to stop logging with validation"""
+    try:
+        success, message = adb_manager.stop_logging()
+        return jsonify({'success': success, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error stopping logging: {str(e)}'})
 
 @app.route('/api/clear-logs', methods=['POST'])
 def clear_logs():
-    """API endpoint to clear logs"""
-    adb_manager.clear_logs()
-    return jsonify({'success': True, 'message': 'Logs cleared'})
-
-@app.route('/api/apply-filters', methods=['POST'])
-def apply_filters():
-    """API endpoint to apply multiple filters"""
+    """API endpoint to clear logs with validation"""
     try:
-        data = request.get_json()
-        filters = data.get('filters', [])
-        
-        if not filters:
-            return jsonify({'success': False, 'message': 'No filters provided'})
-        
-        adb_manager.set_filters(filters)
-        return jsonify({
-            'success': True, 
-            'message': f'Filters applied: {", ".join(filters)}',
-            'active_filters': filters
-        })
+        message = adb_manager.clear_logs()
+        return jsonify({'success': True, 'message': message})
     except Exception as e:
-        return jsonify({'success': False, 'message': str(e)})
-
-@app.route('/api/get-logs')
-def get_logs():
-    """API endpoint to get current logs"""
-    all_logs, filtered_logs = adb_manager.get_logs()
-    
-    return jsonify({
-        'all_logs': all_logs,
-        'filtered_logs': filtered_logs,
-        'active_filters': adb_manager.current_filters
-    })
+        return jsonify({'success': False, 'message': f'❌ Error clearing logs: {str(e)}'})
 
 @app.route('/api/save-logs', methods=['POST'])
 def save_logs():
-    """API endpoint to save logs with optional custom filename"""
-    data = request.get_json() or {}
-    custom_filename = data.get('filename')
-    
-    success, message = adb_manager.save_logs(custom_filename)
-    return jsonify({'success': success, 'message': message})
+    """API endpoint to save logs with validation"""
+    try:
+        data = request.get_json() or {}
+        custom_filename = data.get('filename', '').strip()
+        
+        success, message = adb_manager.save_logs(custom_filename if custom_filename else None)
+        return jsonify({'success': success, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error saving logs: {str(e)}'})
+
+@app.route('/api/apply-filters', methods=['POST'])
+def apply_filters():
+    """API endpoint to apply multiple filters with validation"""
+    try:
+        data = request.get_json()
+        filters = data.get('filters', []) if data else []
+        
+        # Validate and clean filters
+        valid_filters = [f.strip() for f in filters if f and f.strip()]
+        
+        if not valid_filters:
+            return jsonify({'success': False, 'message': '❌ At least one valid filter keyword is required'})
+        
+        adb_manager.set_filters(valid_filters)
+        return jsonify({
+            'success': True, 
+            'message': f'✅ Filters applied: {", ".join(valid_filters)}',
+            'active_filters': valid_filters
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error applying filters: {str(e)}'})
 
 @app.route('/api/pull-file', methods=['POST'])
 def pull_file():
-    """API endpoint to pull CHR.db file"""
-    data = request.get_json()
-    os_type = data.get('os_type')
-    
-    if not os_type:
-        return jsonify({'success': False, 'message': 'OS type required'})
-    
-    success, message = adb_manager.pull_chr_file(os_type)
-    return jsonify({'success': success, 'message': message})
+    """API endpoint to pull CHR.db file with validation"""
+    try:
+        data = request.get_json()
+        os_type = data.get('os_type', '').strip().lower() if data else ''
+        
+        if os_type not in ['vega', 'puffin', 'fos']:
+            return jsonify({'success': False, 'message': '❌ Invalid OS type. Must be vega, puffin, or fos'})
+        
+        success, message = adb_manager.pull_chr_file(os_type)
+        return jsonify({'success': success, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error pulling file: {str(e)}'})
+
+@app.route('/api/get-logs')
+def get_logs():
+    """API endpoint to get current logs with status info"""
+    try:
+        all_logs, filtered_logs = adb_manager.get_logs()
+        
+        return jsonify({
+            'all_logs': all_logs,
+            'filtered_logs': filtered_logs,
+            'active_filters': adb_manager.current_filters,
+            'is_logging': adb_manager.is_logging_active,
+            'current_device': adb_manager.current_device,
+            'log_count': len(adb_manager.log_buffer),
+            'filtered_count': len(adb_manager.filtered_log_buffer)
+        })
+    except Exception as e:
+        return jsonify({
+            'error': f'Error retrieving logs: {str(e)}',
+            'all_logs': '',
+            'filtered_logs': '',
+            'active_filters': [],
+            'is_logging': False
+        })
 
 def find_free_port():
     """Find a free port to run the Flask application"""
