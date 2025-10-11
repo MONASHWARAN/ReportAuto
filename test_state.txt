@@ -1,69 +1,48 @@
-ADB Logs - Generated: 2025-10-11 18:41:19.307302
+ADB Logs - Generated: 2025-10-11 18:42:06.354225
 Platform: Linux
-Total log entries: 64
+Total log entries: 43
 ==================================================
 
-[18:39:55] [INFO] Stopping logging (Method: unknown)
-[18:39:57] [INFO] Starting automatic log detection with specific log patterns...
-[18:39:57] [INFO] Platform: Linux, Using grep for filtering
-[18:39:57] [INFO] Device: fos_test_device
-[18:39:57] [INFO] Testing device connectivity (attempt 1/3)
-[18:39:57] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:39:59] [INFO] Testing device connectivity (attempt 2/3)
-[18:39:59] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:40:01] [INFO] Testing device connectivity (attempt 3/3)
-[18:40:01] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
-[18:40:01] [INFO] Stopping logging (Method: unknown)
-[18:40:02] [INFO] Stopping logging (Method: unknown)
-[18:40:04] [INFO] Starting automatic log detection with specific log patterns...
-[18:40:04] [INFO] Platform: Linux, Using grep for filtering
-[18:40:04] [INFO] Device: fos_test_device
-[18:40:04] [INFO] Testing device connectivity (attempt 1/3)
-[18:40:04] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:40:06] [INFO] Testing device connectivity (attempt 2/3)
-[18:40:06] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:40:08] [INFO] Testing device connectivity (attempt 3/3)
-[18:40:08] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
-[18:40:45] [INFO] Stopping logging (Method: unknown)
-[18:40:47] [INFO] Starting automatic log detection with specific log patterns...
-[18:40:47] [INFO] Platform: Linux, Using grep for filtering
-[18:40:47] [INFO] Device: test_connectivity_device
-[18:40:47] [INFO] Testing device connectivity (attempt 1/3)
-[18:40:47] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:40:49] [INFO] Testing device connectivity (attempt 2/3)
-[18:40:49] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:40:51] [INFO] Testing device connectivity (attempt 3/3)
-[18:40:51] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
-[18:40:51] [INFO] Stopping logging (Method: unknown)
-[18:40:53] [INFO] Starting automatic log detection with specific log patterns...
-[18:40:53] [INFO] Platform: Linux, Using grep for filtering
-[18:40:53] [INFO] Device: fos_retry_test
-[18:40:53] [INFO] Testing device connectivity (attempt 1/3)
-[18:40:53] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:40:55] [INFO] Testing device connectivity (attempt 2/3)
-[18:40:55] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:40:57] [INFO] Testing device connectivity (attempt 3/3)
-[18:40:57] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
-[18:40:57] [INFO] Stopping logging (Method: unknown)
-[18:40:59] [INFO] Stopping logging (Method: unknown)
-[18:41:01] [INFO] Starting automatic log detection with specific log patterns...
-[18:41:01] [INFO] Platform: Linux, Using grep for filtering
-[18:41:01] [INFO] Device: fos_retry_test
-[18:41:01] [INFO] Testing device connectivity (attempt 1/3)
-[18:41:01] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:41:03] [INFO] Testing device connectivity (attempt 2/3)
-[18:41:03] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:41:05] [INFO] Testing device connectivity (attempt 3/3)
-[18:41:05] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
-[18:41:05] [INFO] Stopping logging (Method: unknown)
-[18:41:06] [INFO] Stopping logging (Method: unknown)
-[18:41:08] [INFO] Starting automatic log detection with specific log patterns...
-[18:41:08] [INFO] Platform: Linux, Using grep for filtering
-[18:41:08] [INFO] Device: cycle_test
-[18:41:08] [INFO] Testing device connectivity (attempt 1/3)
-[18:41:08] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:41:10] [INFO] Testing device connectivity (attempt 2/3)
-[18:41:10] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
-[18:41:12] [INFO] Testing device connectivity (attempt 3/3)
-[18:41:12] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
-[18:41:12] [INFO] Stopping logging (Method: unknown)
+[18:41:38] [INFO] Stopping logging (Method: unknown)
+[18:41:40] [INFO] Starting automatic log detection with specific log patterns...
+[18:41:40] [INFO] Platform: Linux, Using grep for filtering
+[18:41:40] [INFO] Device: test_connectivity_device
+[18:41:40] [INFO] Testing device connectivity (attempt 1/3)
+[18:41:40] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
+[18:41:42] [INFO] Testing device connectivity (attempt 2/3)
+[18:41:42] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
+[18:41:44] [INFO] Testing device connectivity (attempt 3/3)
+[18:41:44] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
+[18:41:44] [INFO] Stopping logging (Method: unknown)
+[18:41:46] [INFO] Starting automatic log detection with specific log patterns...
+[18:41:46] [INFO] Platform: Linux, Using grep for filtering
+[18:41:46] [INFO] Device: fos_retry_test
+[18:41:46] [INFO] Testing device connectivity (attempt 1/3)
+[18:41:46] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
+[18:41:48] [INFO] Testing device connectivity (attempt 2/3)
+[18:41:48] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
+[18:41:50] [INFO] Testing device connectivity (attempt 3/3)
+[18:41:50] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
+[18:41:50] [INFO] Stopping logging (Method: unknown)
+[18:41:52] [INFO] Stopping logging (Method: unknown)
+[18:41:54] [INFO] Starting automatic log detection with specific log patterns...
+[18:41:54] [INFO] Platform: Linux, Using grep for filtering
+[18:41:54] [INFO] Device: fos_retry_test
+[18:41:54] [INFO] Testing device connectivity (attempt 1/3)
+[18:41:54] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
+[18:41:56] [INFO] Testing device connectivity (attempt 2/3)
+[18:41:56] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
+[18:41:58] [INFO] Testing device connectivity (attempt 3/3)
+[18:41:58] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
+[18:41:58] [INFO] Stopping logging (Method: unknown)
+[18:41:59] [INFO] Stopping logging (Method: unknown)
+[18:42:01] [INFO] Starting automatic log detection with specific log patterns...
+[18:42:01] [INFO] Platform: Linux, Using grep for filtering
+[18:42:01] [INFO] Device: cycle_test
+[18:42:01] [INFO] Testing device connectivity (attempt 1/3)
+[18:42:01] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
+[18:42:03] [INFO] Testing device connectivity (attempt 2/3)
+[18:42:03] [WARN] Connectivity error: [Errno 2] No such file or directory: 'adb', retrying...
+[18:42:05] [INFO] Testing device connectivity (attempt 3/3)
+[18:42:05] [ERROR] Final connectivity test failed: [Errno 2] No such file or directory: 'adb'
+[18:42:05] [INFO] Stopping logging (Method: unknown)
