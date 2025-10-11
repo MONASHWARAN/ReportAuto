@@ -1087,16 +1087,63 @@ class ADBManager:
             is_logging = False
             return False, f"❌ Error stopping logging: {str(e)}"
     
-    def _read_logs(self):
-        """Background thread to read logs - Windows uses file tailing, Unix uses pipes"""
-        global log_process, is_logging
+    def _read_logs_windows_direct(self, process):
+        """Windows-specific log reading directly from process"""
+        global is_logging
         
-        if self.platform_system == 'windows':
-            # Windows: Use file-based approach for reliable log capture
-            self._read_logs_windows()
-        else:
-            # Unix/Linux/Mac: Use standard pipe reading
-            self._read_logs_unix()
+        self.add_log_entry("[INFO] Windows: Starting direct process log reading")
+        
+        while is_logging and self.is_logging_active and process and process.poll() is None:
+            try:
+                line = process.stdout.readline()
+                
+                if line and line.strip():
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    log_entry = f"[{timestamp}] {line.rstrip()}\n"
+                    
+                    # Add to main log buffer
+                    self.log_buffer.append(log_entry)
+                    if len(self.log_buffer) > 1000:
+                        self.log_buffer.pop(0)
+                    
+                    # Apply additional user filters on top of base filtering
+                    if self.current_filters:
+                        for filter_keyword in self.current_filters:
+                            if filter_keyword and filter_keyword.lower() in line.lower():
+                                self.filtered_log_buffer.append(log_entry)
+                                if len(self.filtered_log_buffer) > 1000:
+                                    self.filtered_log_buffer.pop(0)
+                                print(f"WINDOWS FILTER MATCH: '{filter_keyword}' in: {line[:50]}...")
+                                break
+                    else:
+                        # If no user filters, show all base-filtered logs
+                        self.filtered_log_buffer.append(log_entry)
+                        if len(self.filtered_log_buffer) > 1000:
+                            self.filtered_log_buffer.pop(0)
+                
+                time.sleep(0.1)  # Small delay to prevent excessive CPU usage
+                    
+            except Exception as e:
+                print(f"Windows direct log reading error: {e}")
+                self.add_log_entry(f"[ERROR] Windows log reading error: {str(e)}")
+                break
+        
+        print("Windows direct log reading thread terminated")
+        self.add_log_entry("[INFO] Windows: Log reading thread terminated")
+
+    def clear_logs(self):
+        """Clear log buffers with validation"""
+        log_count = len(self.log_buffer)
+        filtered_count = len(self.filtered_log_buffer)
+        
+        if log_count == 0 and filtered_count == 0:
+            return "ℹ️ No logs to clear"
+        
+        self.log_buffer.clear()
+        self.filtered_log_buffer.clear()
+        
+        print(f"Cleared {log_count} main logs and {filtered_count} filtered logs")
+        return f"✅ Cleared {log_count} main logs and {filtered_count} filtered logs"
     
     def _read_logs_windows(self):
         """Windows-specific log reading using temporary file with specific log patterns"""
