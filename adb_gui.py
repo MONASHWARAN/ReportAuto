@@ -1043,48 +1043,93 @@ class ADBManager:
             return False, f"❌ Unix logging error: {str(e)}"
     
     def stop_logging(self):
-        """Stop current logging with proper state cleanup"""
+        """Stop current logging with comprehensive cleanup for FOS/Vega reliability"""
         global log_process, is_logging
         
         try:
             was_logging = self.is_logging_active or is_logging
+            current_method = self.current_log_method.get('os_type') if self.current_log_method else None
             
-            # Stop logging flags
+            self.add_log_entry(f"[INFO] Stopping logging (Method: {current_method or 'unknown'})")
+            
+            # Stop logging flags immediately
             is_logging = False
             self.is_logging_active = False
             
-            # Cleanup process
+            # Enhanced process cleanup
             if log_process:
                 try:
-                    self.add_log_entry(f"[INFO] Stopping log process (PID: {log_process.pid})")
+                    # Step 1: Graceful termination
+                    self.add_log_entry(f"[INFO] Terminating log process (PID: {log_process.pid})")
                     log_process.terminate()
-                    log_process.wait(timeout=3)
-                except subprocess.TimeoutExpired:
+                    
+                    # Wait for graceful exit
                     try:
-                        self.add_log_entry("[WARN] Force killing log process")
+                        log_process.wait(timeout=3)
+                        self.add_log_entry("[INFO] Process terminated gracefully")
+                    except subprocess.TimeoutExpired:
+                        # Step 2: Force kill if needed
+                        self.add_log_entry("[WARN] Process didn't exit gracefully, force killing...")
                         log_process.kill()
-                        log_process.wait(timeout=2)
-                    except:
-                        pass
+                        try:
+                            log_process.wait(timeout=2)
+                            self.add_log_entry("[INFO] Process force killed successfully")
+                        except subprocess.TimeoutExpired:
+                            self.add_log_entry("[ERROR] Process couldn't be killed")
+                
                 except Exception as e:
-                    self.add_log_entry(f"[WARN] Error stopping process: {str(e)}")
+                    self.add_log_entry(f"[WARN] Error during process cleanup: {str(e)}")
                 
                 log_process = None
                 self.log_process_pid = None
             
-            # Reset state variables
+            # Step 3: FOS-specific cleanup (critical for retry reliability)
+            if current_method == 'fos' and self.current_device:
+                try:
+                    self.add_log_entry("[INFO] FOS-specific cleanup: Resetting ADB logcat session")
+                    adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
+                    
+                    # Kill any lingering logcat processes
+                    cleanup_result = subprocess.run(
+                        [adb_cmd, '-s', self.current_device, 'shell', 'pkill', 'logcat'],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    
+                    # Brief delay for ADB state reset
+                    time.sleep(2)
+                    self.add_log_entry("[INFO] FOS cleanup completed")
+                    
+                except Exception as e:
+                    self.add_log_entry(f"[WARN] FOS cleanup warning: {str(e)}")
+            
+            # Step 4: Clean up Windows batch files
+            if hasattr(self, 'current_log_method') and self.current_log_method and 'batch_file' in self.current_log_method:
+                try:
+                    import os
+                    batch_file = self.current_log_method['batch_file']
+                    if os.path.exists(batch_file):
+                        os.unlink(batch_file)
+                        self.add_log_entry("[INFO] Windows batch file cleaned up")
+                except Exception as e:
+                    self.add_log_entry(f"[WARN] Batch file cleanup warning: {str(e)}")
+            
+            # Step 5: Reset all state variables
             self.current_device = None
             self.current_log_method = None
             
+            # Step 6: Add delay for complete state reset
+            time.sleep(1)
+            
             if was_logging:
-                self.add_log_entry("[INFO] Logging stopped successfully")
-                return True, "✅ Logging stopped successfully"
+                self.add_log_entry("[SUCCESS] Logging stopped with complete cleanup")
+                return True, "✅ Logging stopped successfully with complete cleanup"
             else:
                 return True, "ℹ️ No active logging to stop"
                 
         except Exception as e:
             self.is_logging_active = False
             is_logging = False
+            self.add_log_entry(f"[ERROR] Error during stop cleanup: {str(e)}")
             return False, f"❌ Error stopping logging: {str(e)}"
     
     def _read_logs_windows_direct(self, process):
