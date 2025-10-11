@@ -767,12 +767,19 @@ class ADBManager:
         global log_process, is_logging
         
         try:
+            # Validate input
+            if not device_id or not device_id.strip():
+                return False, "❌ Device ID is required to start logging"
+            
             # Check if already logging
             if self.is_logging_active and is_logging:
-                return False, "❌ Logging is already active. Stop current logging first."
+                return False, f"❌ Logging is already active for device {self.current_device}. Stop current logging first."
             
-            self.stop_logging()  # Ensure clean state
-            self.current_device = device_id
+            # Ensure complete cleanup before starting
+            self.stop_logging()
+            time.sleep(1)  # Give time for cleanup
+            
+            self.current_device = device_id.strip()
             self.is_logging_active = True
             
             # Add a status message to log buffer for user feedback
@@ -782,175 +789,258 @@ class ADBManager:
             adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
             filter_cmd = 'findstr' if self.platform_system == 'windows' else 'grep'
             
-            # Platform-specific filter arguments
-            if self.platform_system == 'windows':
-                # Windows: Use findstr with multiple /C: options
-                filter_args = '/I /C:"CosineSimilarityCache::LookupImpl" /C:"eventType=Speech" /C:"RESULT_GENERATOR" /C:"Calling onCacheUpdate"'
-            else:
-                # Mac/Linux: Use grep with extended regex
-                filter_args = '-iE "CosineSimilarityCache::LookupImpl|eventType=Speech|RESULT_GENERATOR|Calling onCacheUpdate"'
+            self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, Using {filter_cmd} for filtering")
+            self.add_log_entry(f"[INFO] Device: {device_id}")
             
-            # Trial and error method - try different log commands with specific patterns
+            # Test device connectivity first
+            try:
+                test_result = subprocess.run([adb_cmd, '-s', device_id, 'shell', 'echo', 'test'], 
+                                           capture_output=True, text=True, timeout=5)
+                if test_result.returncode != 0:
+                    self.is_logging_active = False
+                    return False, f"❌ Cannot connect to device {device_id}. Check device connection and USB debugging."
+            except Exception as e:
+                self.is_logging_active = False
+                return False, f"❌ Device connectivity test failed: {str(e)}"
+            
+            # Platform-specific log methods with proper Windows handling
+            if self.platform_system == 'windows':
+                # Windows: Use batch files for complex shell commands
+                success, message = self._start_logging_windows(device_id, adb_cmd)
+            else:
+                # Unix/Linux/Mac: Use standard approach
+                success, message = self._start_logging_unix(device_id, adb_cmd)
+            
+            if not success:
+                self.is_logging_active = False
+                
+            return success, message
+            
+        except Exception as e:
+            self.is_logging_active = False
+            self.add_log_entry(f"[FATAL ERROR] Logging startup failed: {str(e)}")
+            return False, f"❌ Failed to start logging: {str(e)}"
+    
+    def _start_logging_windows(self, device_id, adb_cmd):
+        """Windows-specific logging with batch file approach"""
+        global log_process, is_logging
+        
+        try:
+            import tempfile
+            import os
+            
+            # Create temporary batch files for each method
+            temp_dir = tempfile.gettempdir()
+            
+            # Define log methods for Windows with proper findstr syntax
             log_methods = [
                 {
-                    'name': 'FOS/Puffin (logcat with pattern filter)',
-                    'command': [adb_cmd, '-s', device_id, 'shell', f'logcat | {filter_cmd} {filter_args}'],
+                    'name': 'FOS/Puffin (logcat with findstr)',
+                    'batch_content': f'@echo off\n{adb_cmd} -s {device_id} shell logcat | findstr /I /C:"CosineSimilarityCache::LookupImpl" /C:"eventType=Speech" /C:"RESULT_GENERATOR" /C:"Calling onCacheUpdate"',
                     'os_type': 'fos'
                 },
                 {
-                    'name': 'Vega (journalctl with pattern filter)', 
-                    'command': [adb_cmd, '-s', device_id, 'shell', f'journalctl -f | {filter_cmd} {filter_args}'],
+                    'name': 'Vega (journalctl with findstr)',
+                    'batch_content': f'@echo off\n{adb_cmd} -s {device_id} shell journalctl -f | findstr /I /C:"CosineSimilarityCache::LookupImpl" /C:"eventType=Speech" /C:"RESULT_GENERATOR" /C:"Calling onCacheUpdate"',
                     'os_type': 'vega'
                 }
             ]
             
-            self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, Using {filter_cmd} for filtering")
-            self.add_log_entry("[INFO] Target patterns: CosineSimilarityCache, eventType=Speech, RESULT_GENERATOR, onCacheUpdate")
-            
             for i, method in enumerate(log_methods, 1):
-                self.add_log_entry(f"[INFO] Trying method {i}/2: {method['name']}...")
+                self.add_log_entry(f"[INFO] Windows: Trying method {i}/2: {method['name']}...")
+                
+                # Create temporary batch file
+                batch_file = os.path.join(temp_dir, f"adb_log_method_{i}_{os.getpid()}.bat")
                 
                 try:
-                    # Platform-specific subprocess creation
-                    if self.platform_system == 'windows':
-                        # Windows: Use cmd /c to properly handle the shell command
-                        full_command = ['cmd', '/c'] + method['command']
-                        
-                        startupinfo = subprocess.STARTUPINFO()
-                        startupinfo.dwFlags |= STARTF_USESHOWWINDOW
-                        startupinfo.wShowWindow = SW_HIDE
-                        
-                        test_process = subprocess.Popen(
-                            full_command,
-                            stdout=subprocess.PIPE, 
-                            stderr=subprocess.PIPE,
-                            text=True,
-                            bufsize=0,  # Unbuffered for Windows
-                            startupinfo=startupinfo,
-                            creationflags=CREATE_NO_WINDOW
-                        )
-                    else:
-                        # Unix/Linux/Mac: Use shell=True for proper pipe handling
-                        shell_command = ' '.join(method['command'])
-                        test_process = subprocess.Popen(
-                            shell_command,
-                            stdout=subprocess.PIPE, 
-                            stderr=subprocess.PIPE,
-                            text=True,
-                            shell=True,
-                            bufsize=1
-                        )
+                    with open(batch_file, 'w') as f:
+                        f.write(method['batch_content'])
                     
-                    # Give process more time to start and generate logs
-                    time.sleep(5)
+                    # Make batch file executable and run it
+                    startupinfo = subprocess.STARTUPINFO()
+                    startupinfo.dwFlags |= STARTF_USESHOWWINDOW
+                    startupinfo.wShowWindow = SW_HIDE
+                    
+                    test_process = subprocess.Popen(
+                        [batch_file],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        startupinfo=startupinfo,
+                        creationflags=CREATE_NO_WINDOW
+                    )
+                    
+                    # Give Windows more time to initialize the command chain
+                    time.sleep(8)
                     
                     # Check if process is still running
                     if test_process.poll() is not None:
-                        # Process died, check error output
                         try:
                             _, stderr = test_process.communicate(timeout=2)
-                        except subprocess.TimeoutExpired:
-                            test_process.kill()
-                            stderr = "Process timeout during error check"
-                        self.add_log_entry(f"[ERROR] {method['name']} failed: {stderr.strip()}")
-                        continue
+                            self.add_log_entry(f"[ERROR] Windows {method['name']} failed: {stderr.strip()}")
+                            os.unlink(batch_file)
+                            continue
+                        except:
+                            os.unlink(batch_file)
+                            continue
                     
-                    # Test if we can read logs
-                    logs_available = False
+                    # Test log availability by reading a few lines
                     sample_lines = []
+                    logs_available = False
                     
-                    if self.platform_system == 'windows':
-                        # Windows: Try to read directly from process for testing
-                        self.add_log_entry(f"[INFO] Windows: Testing {method['name']} with direct read...")
-                        
-                        try:
-                            # Try to read a few lines with timeout
-                            import select
-                            ready_count = 0
-                            for attempt in range(10):  # Try for 5 seconds
-                                try:
-                                    line = test_process.stdout.readline()
-                                    if line and line.strip():
-                                        sample_lines.append(line.strip())
-                                        ready_count += 1
-                                        if ready_count >= 2:  # Got at least 2 lines
-                                            logs_available = True
-                                            break
-                                except:
-                                    pass
-                                time.sleep(0.5)
-                        except Exception as e:
-                            self.add_log_entry(f"[WARN] Windows read test failed: {str(e)}")
-                    else:
-                        # Unix/Linux/Mac: Use select as before
-                        try:
-                            ready, _, _ = select.select([test_process.stdout], [], [], 5)
-                            if ready:
-                                # Try to read a sample line
-                                try:
-                                    line = test_process.stdout.readline()
-                                    if line and line.strip():
-                                        sample_lines.append(line.strip())
+                    try:
+                        for attempt in range(15):  # Try for 7.5 seconds
+                            try:
+                                line = test_process.stdout.readline()
+                                if line and line.strip():
+                                    sample_lines.append(line.strip())
+                                    if len(sample_lines) >= 2:  # Got at least 2 lines
                                         logs_available = True
-                                except:
-                                    pass
-                        except Exception as e:
-                            self.add_log_entry(f"[ERROR] Select failed: {str(e)}")
+                                        break
+                            except:
+                                pass
+                            time.sleep(0.5)
+                    except Exception as e:
+                        self.add_log_entry(f"[WARN] Windows log test error: {str(e)}")
                     
                     if logs_available and sample_lines:
-                        # We have data available, this method works!
+                        # Success! This method works
                         log_process = test_process
                         is_logging = True
-                        detected_os = method['os_type']
                         self.log_process_pid = test_process.pid
                         
-                        # Add success message and samples
-                        self.add_log_entry(f"[SUCCESS] {method['name']} method works! Auto-detected: {detected_os.upper()}")
-                        self.add_log_entry(f"[INFO] Starting real-time filtered log capture on {self.platform_system.title()}")
+                        # Add success messages and samples
+                        self.add_log_entry(f"[SUCCESS] Windows {method['name']} method works! Auto-detected: {method['os_type'].upper()}")
+                        self.add_log_entry(f"[INFO] Starting real-time Windows log capture with findstr")
                         
-                        # Show sample logs
                         for sample in sample_lines[:3]:
                             self.add_log_entry(f"[SAMPLE] {sample}")
                         
-                        # Store the current log method for the log reading thread
-                        self.current_log_method = method
+                        # Store method info
+                        self.current_log_method = {
+                            'name': method['name'],
+                            'batch_file': batch_file,  # Keep batch file for cleanup
+                            'os_type': method['os_type']
+                        }
                         
-                        # Start background thread to read logs
-                        log_thread = threading.Thread(target=self._read_logs, daemon=True)
+                        # Start Windows-specific background thread
+                        log_thread = threading.Thread(target=self._read_logs_windows_direct, args=(test_process,), daemon=True)
                         log_thread.start()
                         
-                        return True, f"Started filtered logging for {device_id} using {method['name']} method (Auto-detected: {detected_os.upper()})"
+                        return True, f"✅ Started Windows logging for {device_id} using {method['name']} (Auto-detected: {method['os_type'].upper()})"
+                    
                     else:
-                        # No data received, try next method
-                        self.add_log_entry(f"[WARN] {method['name']} - no filtered logs received, trying next method...")
+                        # No logs received, cleanup and try next method
+                        self.add_log_entry(f"[WARN] Windows {method['name']} - no filtered logs received, trying next method...")
                         try:
                             test_process.terminate()
-                            test_process.wait(timeout=2)
+                            test_process.wait(timeout=3)
                         except:
                             try:
                                 test_process.kill()
                             except:
                                 pass
-                        continue
                         
-                except subprocess.TimeoutExpired:
-                    self.add_log_entry(f"[ERROR] {method['name']} timed out")
-                    continue
+                        # Cleanup batch file
+                        try:
+                            os.unlink(batch_file)
+                        except:
+                            pass
+                        
                 except Exception as e:
-                    self.add_log_entry(f"[ERROR] Failed to start {method['name']}: {str(e)}")
+                    self.add_log_entry(f"[ERROR] Windows batch file error for {method['name']}: {str(e)}")
+                    try:
+                        os.unlink(batch_file)
+                    except:
+                        pass
                     continue
             
-            # If we get here, all methods failed
-            self.is_logging_active = False
-            self.add_log_entry("[ERROR] All filtered logging methods failed!")
-            self.add_log_entry("[INFO] This may mean no devices are connected or no matching log patterns are being generated")
-            self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, ADB Command: {adb_cmd}, Filter Command: {filter_cmd}")
-            return False, "❌ All logging methods failed. Check device connection and ensure target applications are generating logs."
+            # If we get here, all Windows methods failed
+            return False, "❌ All Windows logging methods failed. Ensure devices are connected and generating target log patterns."
             
         except Exception as e:
-            self.is_logging_active = False
-            self.add_log_entry(f"[FATAL ERROR] Logging startup failed: {str(e)}")
-            return False, f"Failed to start logging: {str(e)}"
+            return False, f"❌ Windows logging startup error: {str(e)}"
+    
+    def _start_logging_unix(self, device_id, adb_cmd):
+        """Unix/Linux/Mac logging with standard approach"""
+        global log_process, is_logging
+        
+        try:
+            # Standard Unix approach with shell commands
+            log_methods = [
+                {
+                    'name': 'FOS/Puffin (logcat with grep)',
+                    'command': f'{adb_cmd} -s {device_id} shell "logcat | grep -iE \\"CosineSimilarityCache::LookupImpl|eventType=Speech|RESULT_GENERATOR|Calling onCacheUpdate\\""',
+                    'os_type': 'fos'
+                },
+                {
+                    'name': 'Vega (journalctl with grep)',
+                    'command': f'{adb_cmd} -s {device_id} shell "journalctl -f | grep -iE \\"CosineSimilarityCache::LookupImpl|eventType=Speech|RESULT_GENERATOR|Calling onCacheUpdate\\""',
+                    'os_type': 'vega'
+                }
+            ]
+            
+            for i, method in enumerate(log_methods, 1):
+                self.add_log_entry(f"[INFO] Unix: Trying method {i}/2: {method['name']}...")
+                
+                try:
+                    test_process = subprocess.Popen(
+                        method['command'],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        shell=True,
+                        bufsize=1
+                    )
+                    
+                    time.sleep(5)
+                    
+                    if test_process.poll() is not None:
+                        _, stderr = test_process.communicate(timeout=2)
+                        self.add_log_entry(f"[ERROR] Unix {method['name']} failed: {stderr.strip()}")
+                        continue
+                    
+                    # Test with select
+                    try:
+                        ready, _, _ = select.select([test_process.stdout], [], [], 5)
+                        if ready:
+                            line = test_process.stdout.readline()
+                            if line and line.strip():
+                                # Success!
+                                log_process = test_process
+                                is_logging = True
+                                self.log_process_pid = test_process.pid
+                                
+                                self.add_log_entry(f"[SUCCESS] Unix {method['name']} works! Auto-detected: {method['os_type'].upper()}")
+                                self.add_log_entry(f"[SAMPLE] {line.strip()}")
+                                
+                                self.current_log_method = method
+                                
+                                log_thread = threading.Thread(target=self._read_logs_unix, daemon=True)
+                                log_thread.start()
+                                
+                                return True, f"✅ Started Unix logging for {device_id} using {method['name']}"
+                    except Exception as e:
+                        self.add_log_entry(f"[ERROR] Unix select failed: {str(e)}")
+                        
+                    # Cleanup failed attempt
+                    try:
+                        test_process.terminate()
+                        test_process.wait(timeout=2)
+                    except:
+                        try:
+                            test_process.kill()
+                        except:
+                            pass
+                        
+                except Exception as e:
+                    self.add_log_entry(f"[ERROR] Unix method error: {str(e)}")
+                    continue
+            
+            return False, "❌ All Unix logging methods failed."
+            
+        except Exception as e:
+            return False, f"❌ Unix logging error: {str(e)}"
     
     def stop_logging(self):
         """Stop current logging with proper state cleanup"""
