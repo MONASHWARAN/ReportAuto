@@ -992,15 +992,24 @@ echo Starting Vega journalctl...
             return False, f"❌ Windows logging startup error: {str(e)}"
     
     def _start_logging_unix(self, device_id, adb_cmd):
-        """Unix/Linux/Mac logging with standard approach"""
+        """Unix/Linux/Mac logging with enhanced FOS retry support"""
         global log_process, is_logging
         
         try:
-            # Standard Unix approach with shell commands
+            # Pre-cleanup for FOS reliability (same as Windows)
+            try:
+                self.add_log_entry("[INFO] Unix: Pre-cleaning ADB state for reliable restart")
+                subprocess.run([adb_cmd, '-s', device_id, 'shell', 'pkill', 'logcat'], 
+                             capture_output=True, timeout=3)
+                time.sleep(1)
+            except:
+                pass  # Non-critical
+            
+            # Enhanced Unix log methods with retry-friendly commands
             log_methods = [
                 {
                     'name': 'FOS/Puffin (logcat with grep)',
-                    'command': f'{adb_cmd} -s {device_id} shell "logcat | grep -iE \\"CosineSimilarityCache::LookupImpl|eventType=Speech|RESULT_GENERATOR|Calling onCacheUpdate\\""',
+                    'command': f'{adb_cmd} -s {device_id} shell "logcat -c && logcat | grep -iE \\"CosineSimilarityCache::LookupImpl|eventType=Speech|RESULT_GENERATOR|Calling onCacheUpdate\\""',
                     'os_type': 'fos'
                 },
                 {
@@ -1013,61 +1022,88 @@ echo Starting Vega journalctl...
             for i, method in enumerate(log_methods, 1):
                 self.add_log_entry(f"[INFO] Unix: Trying method {i}/2: {method['name']}...")
                 
-                try:
-                    test_process = subprocess.Popen(
-                        method['command'],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        shell=True,
-                        bufsize=1
-                    )
+                # Retry mechanism for Unix reliability (same as Windows)
+                for attempt in range(2):  # Try twice for each method
+                    if attempt > 0:
+                        self.add_log_entry(f"[INFO] Unix: Retry attempt {attempt + 1} for {method['name']}")
+                        time.sleep(2)
                     
-                    time.sleep(5)
-                    
-                    if test_process.poll() is not None:
-                        _, stderr = test_process.communicate(timeout=2)
-                        self.add_log_entry(f"[ERROR] Unix {method['name']} failed: {stderr.strip()}")
-                        continue
-                    
-                    # Test with select
                     try:
-                        ready, _, _ = select.select([test_process.stdout], [], [], 5)
-                        if ready:
-                            line = test_process.stdout.readline()
-                            if line and line.strip():
-                                # Success!
-                                log_process = test_process
-                                is_logging = True
-                                self.log_process_pid = test_process.pid
-                                
-                                self.add_log_entry(f"[SUCCESS] Unix {method['name']} works! Auto-detected: {method['os_type'].upper()}")
-                                self.add_log_entry(f"[SAMPLE] {line.strip()}")
-                                
-                                self.current_log_method = method
-                                
-                                log_thread = threading.Thread(target=self._read_logs_unix, daemon=True)
-                                log_thread.start()
-                                
-                                return True, f"✅ Started Unix logging for {device_id} using {method['name']}"
-                    except Exception as e:
-                        self.add_log_entry(f"[ERROR] Unix select failed: {str(e)}")
+                        test_process = subprocess.Popen(
+                            method['command'],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            shell=True,
+                            bufsize=1
+                        )
                         
-                    # Cleanup failed attempt
-                    try:
-                        test_process.terminate()
-                        test_process.wait(timeout=2)
-                    except:
+                        # Give more time for FOS, same as Windows
+                        wait_time = 8 if method['os_type'] == 'fos' else 5
+                        time.sleep(wait_time)
+                        
+                        if test_process.poll() is not None:
+                            _, stderr = test_process.communicate(timeout=2)
+                            error_msg = stderr.strip() if stderr else "Unknown error"
+                            self.add_log_entry(f"[WARN] Unix {method['name']} attempt {attempt + 1} failed: {error_msg}")
+                            if attempt == 0:  # Try again
+                                continue
+                            else:  # Final attempt failed
+                                break
+                        
+                        # Test with select and enhanced detection
                         try:
-                            test_process.kill()
-                        except:
-                            pass
+                            ready, _, _ = select.select([test_process.stdout], [], [], 5)
+                            if ready:
+                                line = test_process.stdout.readline()
+                                if line and line.strip():
+                                    # Success!
+                                    log_process = test_process
+                                    is_logging = True
+                                    self.log_process_pid = test_process.pid
+                                    
+                                    self.add_log_entry(f"[SUCCESS] Unix {method['name']} works! Auto-detected: {method['os_type'].upper()}")
+                                    self.add_log_entry(f"[INFO] Starting reliable Unix log capture (Attempt {attempt + 1})")
+                                    self.add_log_entry(f"[SAMPLE] {line.strip()}")
+                                    
+                                    self.current_log_method = {
+                                        'name': method['name'],
+                                        'command': method['command'],
+                                        'os_type': method['os_type'],
+                                        'process': test_process
+                                    }
+                                    
+                                    log_thread = threading.Thread(target=self._read_logs_unix, daemon=True)
+                                    log_thread.start()
+                                    
+                                    return True, f"✅ Started Unix logging for {device_id} using {method['name']} (Auto-detected: {method['os_type'].upper()})"
+                        except Exception as e:
+                            self.add_log_entry(f"[WARN] Unix select error: {str(e)}")
                         
-                except Exception as e:
-                    self.add_log_entry(f"[ERROR] Unix method error: {str(e)}")
-                    continue
+                        # If we're here, this attempt failed
+                        if attempt == 1:  # Final attempt
+                            break
+                            
+                        # Cleanup failed attempt for retry
+                        try:
+                            test_process.terminate()
+                            test_process.wait(timeout=2)
+                        except:
+                            try:
+                                test_process.kill()
+                            except:
+                                pass
+                                
+                    except Exception as e:
+                        self.add_log_entry(f"[ERROR] Unix method error (attempt {attempt + 1}): {str(e)}")
+                        if attempt == 1:  # Final attempt
+                            break
+                        continue
+                
+                # Both attempts failed for this method, cleanup and try next
+                self.add_log_entry(f"[WARN] Unix {method['name']} - all attempts failed, trying next method...")
             
-            return False, "❌ All Unix logging methods failed."
+            return False, "❌ All Unix logging methods failed. Check device connection and ensure applications are generating target patterns."
             
         except Exception as e:
             return False, f"❌ Unix logging error: {str(e)}"
