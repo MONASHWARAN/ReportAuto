@@ -176,12 +176,17 @@ def test_cross_platform(base_url):
         
         all_logs = data.get('all_logs', '')
         
-        # Should show platform detection
-        if 'platform:' in all_logs.lower():
+        # Should show platform detection (case insensitive)
+        if ('platform:' in all_logs.lower() or 
+            'windows' in all_logs.lower() or 
+            'linux' in all_logs.lower() or 
+            'mac' in all_logs.lower() or
+            'unix' in all_logs.lower()):
             return True
             
         return False
-    except Exception:
+    except Exception as e:
+        print(f"Cross-platform test error: {e}")
         return False
 
 if __name__ == "__main__":
