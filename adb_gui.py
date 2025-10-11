@@ -822,26 +822,39 @@ class ADBManager:
             return False, f"❌ Failed to start logging: {str(e)}"
     
     def _start_logging_windows(self, device_id, adb_cmd):
-        """Windows-specific logging with batch file approach"""
+        """Windows-specific logging with enhanced FOS retry support"""
         global log_process, is_logging
         
         try:
             import tempfile
             import os
             
+            # Pre-cleanup for FOS reliability
+            try:
+                self.add_log_entry("[INFO] Windows: Pre-cleaning ADB state for reliable restart")
+                subprocess.run([adb_cmd, '-s', device_id, 'shell', 'pkill', 'logcat'], 
+                             capture_output=True, timeout=3)
+                time.sleep(1)
+            except:
+                pass  # Non-critical
+            
             # Create temporary batch files for each method
             temp_dir = tempfile.gettempdir()
             
-            # Define log methods for Windows with proper findstr syntax
+            # Enhanced log methods with retry-friendly commands
             log_methods = [
                 {
                     'name': 'FOS/Puffin (logcat with findstr)',
-                    'batch_content': f'@echo off\n{adb_cmd} -s {device_id} shell logcat | findstr /I /C:"CosineSimilarityCache::LookupImpl" /C:"eventType=Speech" /C:"RESULT_GENERATOR" /C:"Calling onCacheUpdate"',
+                    'batch_content': f'''@echo off
+echo Starting FOS logcat...
+{adb_cmd} -s {device_id} shell "logcat -c && logcat" | findstr /I /C:"CosineSimilarityCache::LookupImpl" /C:"eventType=Speech" /C:"RESULT_GENERATOR" /C:"Calling onCacheUpdate"''',
                     'os_type': 'fos'
                 },
                 {
                     'name': 'Vega (journalctl with findstr)',
-                    'batch_content': f'@echo off\n{adb_cmd} -s {device_id} shell journalctl -f | findstr /I /C:"CosineSimilarityCache::LookupImpl" /C:"eventType=Speech" /C:"RESULT_GENERATOR" /C:"Calling onCacheUpdate"',
+                    'batch_content': f'''@echo off
+echo Starting Vega journalctl...
+{adb_cmd} -s {device_id} shell "journalctl -f" | findstr /I /C:"CosineSimilarityCache::LookupImpl" /C:"eventType=Speech" /C:"RESULT_GENERATOR" /C:"Calling onCacheUpdate"''',
                     'os_type': 'vega'
                 }
             ]
@@ -850,102 +863,119 @@ class ADBManager:
                 self.add_log_entry(f"[INFO] Windows: Trying method {i}/2: {method['name']}...")
                 
                 # Create temporary batch file
-                batch_file = os.path.join(temp_dir, f"adb_log_method_{i}_{os.getpid()}.bat")
+                batch_file = os.path.join(temp_dir, f"adb_log_{method['os_type']}_{os.getpid()}.bat")
                 
                 try:
                     with open(batch_file, 'w') as f:
                         f.write(method['batch_content'])
                     
-                    # Make batch file executable and run it
+                    # Enhanced Windows subprocess creation
                     startupinfo = subprocess.STARTUPINFO()
                     startupinfo.dwFlags |= STARTF_USESHOWWINDOW
                     startupinfo.wShowWindow = SW_HIDE
                     
-                    test_process = subprocess.Popen(
-                        [batch_file],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True,
-                        startupinfo=startupinfo,
-                        creationflags=CREATE_NO_WINDOW
-                    )
-                    
-                    # Give Windows more time to initialize the command chain
-                    time.sleep(8)
-                    
-                    # Check if process is still running
-                    if test_process.poll() is not None:
+                    # Retry mechanism for Windows reliability
+                    for attempt in range(2):  # Try twice for each method
+                        if attempt > 0:
+                            self.add_log_entry(f"[INFO] Windows: Retry attempt {attempt + 1} for {method['name']}")
+                            time.sleep(2)  # Brief delay before retry
+                        
+                        test_process = subprocess.Popen(
+                            [batch_file],
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE,
+                            text=True,
+                            startupinfo=startupinfo,
+                            creationflags=CREATE_NO_WINDOW
+                        )
+                        
+                        # Give Windows more time, especially for FOS
+                        wait_time = 12 if method['os_type'] == 'fos' else 8
+                        time.sleep(wait_time)
+                        
+                        # Check if process is still running
+                        if test_process.poll() is not None:
+                            try:
+                                _, stderr = test_process.communicate(timeout=2)
+                                error_msg = stderr.strip() if stderr else "Unknown error"
+                                self.add_log_entry(f"[WARN] Windows {method['name']} attempt {attempt + 1} failed: {error_msg}")
+                                if attempt == 0:  # Try again
+                                    continue
+                                else:  # Final attempt failed
+                                    os.unlink(batch_file)
+                                    break
+                            except:
+                                os.unlink(batch_file)
+                                break
+                        
+                        # Test log availability with enhanced detection
+                        sample_lines = []
+                        logs_available = False
+                        
                         try:
-                            _, stderr = test_process.communicate(timeout=2)
-                            self.add_log_entry(f"[ERROR] Windows {method['name']} failed: {stderr.strip()}")
-                            os.unlink(batch_file)
-                            continue
-                        except:
-                            os.unlink(batch_file)
-                            continue
+                            # More patient reading for Windows
+                            max_attempts = 20 if method['os_type'] == 'fos' else 15
+                            
+                            for read_attempt in range(max_attempts):
+                                try:
+                                    line = test_process.stdout.readline()
+                                    if line and line.strip():
+                                        sample_lines.append(line.strip())
+                                        if len(sample_lines) >= 2:  # Got at least 2 lines
+                                            logs_available = True
+                                            break
+                                except:
+                                    pass
+                                time.sleep(0.5)
+                        except Exception as e:
+                            self.add_log_entry(f"[WARN] Windows log test error: {str(e)}")
+                        
+                        if logs_available and sample_lines:
+                            # Success! This method works
+                            log_process = test_process
+                            is_logging = True
+                            self.log_process_pid = test_process.pid
+                            
+                            # Add success messages and samples
+                            self.add_log_entry(f"[SUCCESS] Windows {method['name']} works! Auto-detected: {method['os_type'].upper()}")
+                            self.add_log_entry(f"[INFO] Starting reliable Windows log capture (Attempt {attempt + 1})")
+                            
+                            for sample in sample_lines[:3]:
+                                self.add_log_entry(f"[SAMPLE] {sample}")
+                            
+                            # Store method info including batch file for cleanup
+                            self.current_log_method = {
+                                'name': method['name'],
+                                'batch_file': batch_file,
+                                'os_type': method['os_type'],
+                                'process': test_process
+                            }
+                            
+                            # Start Windows-specific background thread
+                            log_thread = threading.Thread(target=self._read_logs_windows_direct, args=(test_process,), daemon=True)
+                            log_thread.start()
+                            
+                            return True, f"✅ Started Windows logging for {device_id} using {method['name']} (Auto-detected: {method['os_type'].upper()})"
+                        
+                        elif attempt == 1:  # Final attempt failed
+                            break
                     
-                    # Test log availability by reading a few lines
-                    sample_lines = []
-                    logs_available = False
-                    
+                    # Both attempts failed for this method, cleanup and try next
+                    self.add_log_entry(f"[WARN] Windows {method['name']} - all attempts failed, trying next method...")
                     try:
-                        for attempt in range(15):  # Try for 7.5 seconds
-                            try:
-                                line = test_process.stdout.readline()
-                                if line and line.strip():
-                                    sample_lines.append(line.strip())
-                                    if len(sample_lines) >= 2:  # Got at least 2 lines
-                                        logs_available = True
-                                        break
-                            except:
-                                pass
-                            time.sleep(0.5)
-                    except Exception as e:
-                        self.add_log_entry(f"[WARN] Windows log test error: {str(e)}")
-                    
-                    if logs_available and sample_lines:
-                        # Success! This method works
-                        log_process = test_process
-                        is_logging = True
-                        self.log_process_pid = test_process.pid
-                        
-                        # Add success messages and samples
-                        self.add_log_entry(f"[SUCCESS] Windows {method['name']} method works! Auto-detected: {method['os_type'].upper()}")
-                        self.add_log_entry(f"[INFO] Starting real-time Windows log capture with findstr")
-                        
-                        for sample in sample_lines[:3]:
-                            self.add_log_entry(f"[SAMPLE] {sample}")
-                        
-                        # Store method info
-                        self.current_log_method = {
-                            'name': method['name'],
-                            'batch_file': batch_file,  # Keep batch file for cleanup
-                            'os_type': method['os_type']
-                        }
-                        
-                        # Start Windows-specific background thread
-                        log_thread = threading.Thread(target=self._read_logs_windows_direct, args=(test_process,), daemon=True)
-                        log_thread.start()
-                        
-                        return True, f"✅ Started Windows logging for {device_id} using {method['name']} (Auto-detected: {method['os_type'].upper()})"
-                    
-                    else:
-                        # No logs received, cleanup and try next method
-                        self.add_log_entry(f"[WARN] Windows {method['name']} - no filtered logs received, trying next method...")
+                        test_process.terminate()
+                        test_process.wait(timeout=3)
+                    except:
                         try:
-                            test_process.terminate()
-                            test_process.wait(timeout=3)
-                        except:
-                            try:
-                                test_process.kill()
-                            except:
-                                pass
-                        
-                        # Cleanup batch file
-                        try:
-                            os.unlink(batch_file)
+                            test_process.kill()
                         except:
                             pass
+                    
+                    # Cleanup batch file
+                    try:
+                        os.unlink(batch_file)
+                    except:
+                        pass
                         
                 except Exception as e:
                     self.add_log_entry(f"[ERROR] Windows batch file error for {method['name']}: {str(e)}")
@@ -956,7 +986,7 @@ class ADBManager:
                     continue
             
             # If we get here, all Windows methods failed
-            return False, "❌ All Windows logging methods failed. Ensure devices are connected and generating target log patterns."
+            return False, "❌ All Windows logging methods failed. Check device connection and ensure applications are generating target patterns."
             
         except Exception as e:
             return False, f"❌ Windows logging startup error: {str(e)}"
