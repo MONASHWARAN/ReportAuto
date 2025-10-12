@@ -748,11 +748,125 @@ class ADBManager:
             print(f"Error getting devices ({self.platform_system}): {e}")
             return []
     
-    def detect_device_os(self, device_id):
-        """Detect device OS type using trial and error log method"""
-        # We'll determine OS type by trying different log commands
-        # This is more reliable than checking properties
-        return 'unknown'  # Will be determined during logging trial
+    def aggressive_cleanup(self, device_id=None):
+        """Aggressive cleanup for robust restart capability"""
+        global log_process, is_logging
+        
+        self.add_log_entry("[INFO] Starting aggressive cleanup for robust restart")
+        
+        # Step 1: Stop Python logging
+        is_logging = False
+        self.is_logging_active = False
+        
+        # Step 2: Kill Python log process
+        if self.log_process:
+            try:
+                self.add_log_entry(f"[INFO] Terminating Python log process (PID: {self.log_process.pid})")
+                
+                # Kill process tree (important for Windows)
+                if self.platform_system == 'windows':
+                    try:
+                        parent = psutil.Process(self.log_process.pid)
+                        children = parent.children(recursive=True)
+                        for child in children:
+                            child.terminate()
+                        parent.terminate()
+                        
+                        # Wait and force kill if needed
+                        psutil.wait_procs([parent] + children, timeout=3)
+                    except psutil.NoSuchProcess:
+                        pass
+                else:
+                    # Unix: Standard termination
+                    self.log_process.terminate()
+                    try:
+                        self.log_process.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        self.log_process.kill()
+                        self.log_process.wait(timeout=2)
+                        
+            except Exception as e:
+                self.add_log_entry(f"[WARN] Python process cleanup error: {str(e)}")
+            
+            self.log_process = None
+            log_process = None
+        
+        # Step 3: Kill device-side processes
+        if device_id:
+            try:
+                self.add_log_entry("[INFO] Cleaning up device-side processes")
+                
+                # Kill logcat processes
+                subprocess.run([self.adb_cmd, '-s', device_id, 'shell', 'pkill', '-f', 'logcat'], 
+                             capture_output=True, timeout=5)
+                
+                # Kill journalctl processes  
+                subprocess.run([self.adb_cmd, '-s', device_id, 'shell', 'pkill', '-f', 'journalctl'], 
+                             capture_output=True, timeout=5)
+                
+                time.sleep(1)  # Let device settle
+                
+            except Exception as e:
+                self.add_log_entry(f"[WARN] Device cleanup warning: {str(e)}")
+        
+        # Step 4: ADB server reset (critical for Windows reliability)
+        try:
+            self.add_log_entry("[INFO] Resetting ADB server for clean state")
+            subprocess.run([self.adb_cmd, 'kill-server'], capture_output=True, timeout=5)
+            time.sleep(2)
+            subprocess.run([self.adb_cmd, 'start-server'], capture_output=True, timeout=10)
+            time.sleep(3)  # Let ADB stabilize
+        except Exception as e:
+            self.add_log_entry(f"[WARN] ADB server reset warning: {str(e)}")
+        
+        # Step 5: Clean up thread references
+        if self.log_thread and self.log_thread.is_alive():
+            try:
+                self.log_thread.join(timeout=2)
+            except:
+                pass
+        self.log_thread = None
+        
+        # Step 6: Reset all state variables
+        self.current_device = None
+        self.current_log_method = None
+        
+        # Step 7: Clear buffers for fresh start
+        self.log_buffer.clear()
+        self.filtered_log_buffer.clear()
+        
+        self.add_log_entry("[SUCCESS] Aggressive cleanup completed")
+        
+        # Final stabilization delay
+        time.sleep(2)
+
+    def test_device_connectivity(self, device_id, max_attempts=3):
+        """Robust device connectivity testing"""
+        for attempt in range(max_attempts):
+            try:
+                self.add_log_entry(f"[INFO] Testing connectivity to {device_id} (attempt {attempt + 1}/{max_attempts})")
+                
+                result = subprocess.run(
+                    [self.adb_cmd, '-s', device_id, 'shell', 'getprop', 'ro.build.type'], 
+                    capture_output=True, text=True, timeout=10
+                )
+                
+                if result.returncode == 0 and result.stdout.strip():
+                    self.add_log_entry(f"[SUCCESS] Device connectivity confirmed: {result.stdout.strip()}")
+                    return True
+                else:
+                    if attempt < max_attempts - 1:
+                        self.add_log_entry(f"[WARN] Connectivity attempt {attempt + 1} failed, retrying...")
+                        time.sleep(3)
+                    
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    self.add_log_entry(f"[WARN] Connectivity error: {str(e)}, retrying...")
+                    time.sleep(3)
+                else:
+                    self.add_log_entry(f"[ERROR] Final connectivity test failed: {str(e)}")
+        
+        return False
     
     def add_log_entry(self, message, apply_filters=True):
         """Add a log entry and apply filters if needed"""
