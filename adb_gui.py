@@ -736,6 +736,42 @@ class ADBManager:
         self.adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
         
         debug_logger.info(f"ADBManager initialized for platform: {self.platform_system}")
+    
+    def _run_adb_with_retry(self, cmd, max_attempts=3, timeout=10):
+        """Run ADB command with exponential backoff retry logic"""
+        for attempt in range(max_attempts):
+            try:
+                delay = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                if attempt > 0:
+                    debug_logger.debug(f"Retry attempt {attempt + 1}/{max_attempts} after {delay}s delay")
+                    time.sleep(delay)
+                
+                debug_logger.debug(f"Running ADB command: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
+                
+                if result.returncode == 0:
+                    debug_logger.debug(f"ADB command successful on attempt {attempt + 1}")
+                    return result
+                else:
+                    debug_logger.warning(f"ADB command failed (attempt {attempt + 1}): {result.stderr}")
+                    if attempt == max_attempts - 1:
+                        return result  # Return failed result on last attempt
+                        
+            except subprocess.TimeoutExpired:
+                debug_logger.error(f"ADB command timeout on attempt {attempt + 1}/{max_attempts}")
+                if attempt == max_attempts - 1:
+                    raise
+            except Exception as e:
+                debug_logger.error(f"ADB command exception on attempt {attempt + 1}: {str(e)}", exc_info=True)
+                if attempt == max_attempts - 1:
+                    raise
+        
+        return None
         
     def get_connected_devices(self):
         """Get list of connected ADB devices - Windows compatible"""
