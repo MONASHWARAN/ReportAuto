@@ -823,7 +823,7 @@ class ADBManager:
         self.is_logging_active = False
         debug_logger.info("Step 2: Logging flags set to False")
         
-        # Step 2: Kill Python log process
+        # Step 3: Kill Python log process
         if self.log_process:
             try:
                 self.add_log_entry(f"[INFO] Terminating Python log process (PID: {self.log_process.pid})")
