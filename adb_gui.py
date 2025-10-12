@@ -818,6 +818,12 @@ HTML_TEMPLATE = """
 
         function hideLoadingInLogs() {
             document.getElementById('all-log-output').textContent = "No logs available. Click 'Start' to begin log capture.";
+            document.getElementById('cosine-log-output').innerHTML = `
+                <div class="text-muted text-center p-4">
+                    <i class="fas fa-code-branch fa-2x mb-2"></i><br>
+                    No CosineSimilarityCache logs available.
+                </div>
+            `;
             document.getElementById('filtered-log-output').textContent = 'No filtered logs available.';
         }
 
