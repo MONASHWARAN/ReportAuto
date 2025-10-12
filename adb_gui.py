@@ -1460,9 +1460,10 @@ class ADBManager:
     # Now using unified _read_logs_with_python_filtering for all platforms
     
     def get_logs(self):
-        """Get current logs"""
+        """Get current logs including cosine similarity logs"""
         all_logs = ''.join(self.log_buffer[-500:])  # Last 500 lines
         filtered_logs = ''.join(self.filtered_log_buffer[-500:])
+        cosine_logs = ''.join(self.cosine_log_buffer[-500:])  # CosineSimilarity logs
         
         # If no filtered logs but filters are applied, show helpful message
         if self.current_filters and not filtered_logs.strip():
@@ -1478,7 +1479,15 @@ No filtered logs available.<br>
 Enter filter keywords and start logging to see matches.
 </div>"""
         
-        return all_logs, filtered_logs
+        # CosineSimilarity logs message
+        if not cosine_logs.strip():
+            cosine_logs = """<div class="text-muted text-center p-4">
+<i class="fas fa-code-branch fa-2x mb-2"></i><br>
+No CosineSimilarityCache logs available.<br>
+<small>Waiting for matching patterns...</small>
+</div>"""
+        
+        return all_logs, filtered_logs, cosine_logs
     
     def clear_logs(self):
         """Clear log buffers with validation"""
