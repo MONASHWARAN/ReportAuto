@@ -579,6 +579,12 @@ HTML_TEMPLATE = """
             }
 
             document.getElementById('all-log-output').textContent = 'Logs cleared.';
+            document.getElementById('cosine-log-output').innerHTML = `
+                <div class="text-muted text-center p-4">
+                    <i class="fas fa-code-branch fa-2x mb-2"></i><br>
+                    No CosineSimilarityCache logs available.
+                </div>
+            `;
             document.getElementById('filtered-log-output').innerHTML = `
                 <div class="text-muted text-center p-4">
                     <i class="fas fa-filter fa-2x mb-2"></i><br>
