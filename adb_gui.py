@@ -1260,34 +1260,41 @@ class ADBManager:
                                 )
                             
                                 if matches_base_pattern:
-                                # Add to main log buffer (all base pattern matches)
-                                self.log_buffer.append(log_entry)
-                                if len(self.log_buffer) > 2000:  # Increased buffer size
-                                    self.log_buffer.pop(0)
-                                
-                                # Apply user filters on top of base filtering
-                                if self.current_filters:
-                                    for user_filter in self.current_filters:
-                                        if user_filter and user_filter.lower() in line.lower():
-                                            self.filtered_log_buffer.append(log_entry)
-                                            if len(self.filtered_log_buffer) > 2000:
-                                                self.filtered_log_buffer.pop(0)
-                                            print(f"PYTHON FILTER MATCH: '{user_filter}' in: {line[:60]}...")
-                                            break
-                                else:
-                                    # No user filters, show all base pattern matches
-                                    self.filtered_log_buffer.append(log_entry)
-                                    if len(self.filtered_log_buffer) > 2000:
-                                        self.filtered_log_buffer.pop(0)
+                                    # Add to main log buffer (all base pattern matches)
+                                    self.log_buffer.append(log_entry)
+                                    if len(self.log_buffer) > 2000:  # Buffer size cap at 2000
+                                        self.log_buffer.pop(0)
+                                    
+                                    # Apply user filters on top of base filtering
+                                    if self.current_filters:
+                                        for user_filter in self.current_filters:
+                                            if user_filter and user_filter.lower() in line.lower():
+                                                self.filtered_log_buffer.append(log_entry)
+                                                if len(self.filtered_log_buffer) > 2000:
+                                                    self.filtered_log_buffer.pop(0)
+                                                debug_logger.debug(f"User filter match: '{user_filter}'")
+                                                break
+                                    else:
+                                        # No user filters, show all base pattern matches
+                                        self.filtered_log_buffer.append(log_entry)
+                                        if len(self.filtered_log_buffer) > 2000:
+                                            self.filtered_log_buffer.pop(0)
                     
                     else:
                         # No line read, brief pause to avoid busy waiting
                         time.sleep(0.05)
                         
                 except Exception as e:
-                    print(f"Python filtering thread error: {e}")
+                    consecutive_errors += 1
+                    debug_logger.error(f"Log reading error ({consecutive_errors}/{max_consecutive_errors}): {str(e)}")
                     self.add_log_entry(f"[ERROR] Log reading error: {str(e)}")
-                    break
+                    
+                    if consecutive_errors >= max_consecutive_errors:
+                        debug_logger.error("Too many consecutive errors, stopping reader thread")
+                        self.add_log_entry("[ERROR] Too many errors, stopping log reader")
+                        break
+                    
+                    time.sleep(1)  # Brief pause before retry
         
         except Exception as e:
             print(f"Python filtering thread fatal error: {e}")
