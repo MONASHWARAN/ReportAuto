@@ -867,23 +867,31 @@ class ADBManager:
             self.log_process = None
             log_process = None
         
-        # Step 3: Kill device-side processes
+        # Step 4: Kill device-side processes
         if device_id:
             try:
                 self.add_log_entry("[INFO] Cleaning up device-side processes")
+                debug_logger.info(f"Cleaning device-side processes for {device_id}")
                 
                 # Kill logcat processes
-                subprocess.run([self.adb_cmd, '-s', device_id, 'shell', 'pkill', '-f', 'logcat'], 
-                             capture_output=True, timeout=5)
+                result = self._run_adb_with_retry(
+                    [self.adb_cmd, '-s', device_id, 'shell', 'pkill', '-f', 'logcat'],
+                    max_attempts=2, timeout=5
+                )
+                debug_logger.debug(f"pkill logcat result: {result.returncode if result else 'None'}")
                 
                 # Kill journalctl processes  
-                subprocess.run([self.adb_cmd, '-s', device_id, 'shell', 'pkill', '-f', 'journalctl'], 
-                             capture_output=True, timeout=5)
+                result = self._run_adb_with_retry(
+                    [self.adb_cmd, '-s', device_id, 'shell', 'pkill', '-f', 'journalctl'],
+                    max_attempts=2, timeout=5
+                )
+                debug_logger.debug(f"pkill journalctl result: {result.returncode if result else 'None'}")
                 
                 time.sleep(1)  # Let device settle
                 
             except Exception as e:
                 self.add_log_entry(f"[WARN] Device cleanup warning: {str(e)}")
+                debug_logger.warning(f"Device cleanup warning: {str(e)}")
         
         # Step 4: ADB server reset (critical for Windows reliability)
         try:
