@@ -1150,53 +1150,53 @@ class ADBManager:
             # All detection methods failed - Enter fallback mode with logcat
             debug_logger.warning("All detection methods failed, entering fallback mode")
             self.add_log_entry("[WARN] Detection failed for both methods")
-            self.add_log_entry("[INFO] Entering RAW FALLBACK MODE with logcat (showing all logs)")
+            self.add_log_entry("[INFO] Entering FALLBACK MODE with logcat file redirection")
             
             try:
-                # Use logcat as default fallback (no pattern filtering)
-                fallback_command = [self.adb_cmd, '-s', device_id, 'shell', 'logcat']
+                # Use logcat as default fallback with file redirection
+                fallback_command = f'{self.adb_cmd} -s {device_id} logcat > "{self.log_file_path}"'
                 debug_logger.info(f"Starting fallback logcat: {fallback_command}")
                 
                 test_process = subprocess.Popen(
                     fallback_command,
+                    shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    text=True,
-                    encoding='utf-8',  # Force UTF-8 encoding for Android logs
-                    errors='replace',  # Replace undecodable bytes with ?
-                    bufsize=0,
-                    universal_newlines=True
+                    text=True
                 )
                 
                 # Give it 5 seconds to start
                 time.sleep(5)
                 
-                if test_process.poll() is None:
-                    # Process is running
-                    self.log_process = test_process
-                    log_process = test_process
-                    is_logging = True
-                    self.is_logging_active = True
-                    self.raw_fallback_mode = True
-                    
-                    self.current_log_method = {
-                        'name': 'Fallback logcat (raw)',
-                        'stream_command': fallback_command,
-                        'os_type': 'fallback'
-                    }
-                    self.detection_verdict = "⚠️ Fallback Mode: logcat (no pattern filtering)"
-                    
-                    # Start background thread
-                    self.log_thread = threading.Thread(
-                        target=self._read_logs_with_python_filtering,
-                        daemon=True
-                    )
-                    self.log_thread.start()
-                    
-                    debug_logger.info("✅ Fallback mode activated successfully")
-                    return True, "⚠️ Started in FALLBACK MODE with raw logcat (all logs shown, no pattern filtering)"
+                # Check if file is being written
+                if os.path.exists(self.log_file_path):
+                    file_size = os.path.getsize(self.log_file_path)
+                    if file_size > 50:
+                        # Process is running
+                        self.log_process = test_process
+                        log_process = test_process
+                        is_logging = True
+                        self.is_logging_active = True
+                        self.raw_fallback_mode = True
+                        
+                        self.current_log_method = {
+                            'name': 'Fallback logcat (file redirection)',
+                            'redirect_command': fallback_command,
+                            'os_type': 'fallback'
+                        }
+                        self.detection_verdict = "⚠️ Fallback Mode: logcat (file redirection)"
+                        
+                        # Start background thread
+                        self.log_thread = threading.Thread(
+                            target=self._read_logs_from_file,
+                            daemon=True
+                        )
+                        self.log_thread.start()
+                        
+                        debug_logger.info("✅ Fallback mode activated successfully")
+                        return True, "⚠️ Started in FALLBACK MODE with logcat file redirection"
                 else:
-                    debug_logger.error("Fallback logcat process died immediately")
+                    debug_logger.error("Fallback logcat file not created")
                     return False, "❌ Even fallback logcat failed to start"
                     
             except Exception as e:
