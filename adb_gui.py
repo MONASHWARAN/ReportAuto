@@ -548,7 +548,7 @@ HTML_TEMPLATE = """
         async function clearLogs() {
             // Check if there are logs to clear
             const allLogsContent = document.getElementById('all-log-output').textContent;
-            if (!isLogging && (allLogsContent === 'No logs available. Click \'Start\' to begin log capture.' || 
+            if (!isLogging && (allLogsContent === "No logs available. Click 'Start' to begin log capture." || 
                 allLogsContent === 'Logs cleared.' || 
                 allLogsContent.includes('Loading'))) {
                 showErrorPopup('Clear Logs Failed', 'No logs to clear. Please start logging first to capture logs.');
@@ -556,7 +556,13 @@ HTML_TEMPLATE = """
             }
 
             document.getElementById('all-log-output').textContent = 'Logs cleared.';
-            document.getElementById('filtered-log-output').textContent = 'Logs cleared.';
+            document.getElementById('filtered-log-output').innerHTML = `
+                <div class="text-muted text-center p-4">
+                    <i class="fas fa-filter fa-2x mb-2"></i><br>
+                    No filtered logs available.<br>
+                    Enter filter keywords and start logging to see matches.
+                </div>
+            `;
             
             try {
                 await fetch('/api/clear-logs', {method: 'POST'});
