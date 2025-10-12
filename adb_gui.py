@@ -1415,10 +1415,13 @@ Enter filter keywords and start logging to see matches.
             return False, f"❌ Failed to save logs: {str(e)}"
     
     def pull_chr_file(self, os_type):
-        """Pull CHR.db file based on OS type with trial and error method - Windows compatible"""
+        """Pull CHR.db file with retry logic and proper path handling - Windows compatible"""
+        debug_logger.info(f"Starting CHR file pull for OS type: {os_type}")
+        
         try:
             devices = self.get_connected_devices()
             if not devices:
+                debug_logger.warning("No devices connected for file pull")
                 return False, "No devices connected"
             
             # Find first available device
@@ -1429,13 +1432,17 @@ Enter filter keywords and start logging to see matches.
                     break
             
             if not device_id:
+                debug_logger.warning("No active devices found")
                 return False, "No active devices found"
             
-            # Determine ADB executable name based on platform
-            adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
+            debug_logger.info(f"Pulling from device: {device_id}")
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             local_filename = f"CHR_{os_type}_{timestamp}.db"
+            
+            # Escape/quote Windows paths
+            if self.platform_system == 'windows':
+                local_filename = f'"{local_filename}"' if ' ' in local_filename else local_filename
             
             # Define all possible paths for each OS type
             path_mapping = {
