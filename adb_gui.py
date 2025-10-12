@@ -623,13 +623,15 @@ HTML_TEMPLATE = """
             const filter1 = document.getElementById('grep-filter1').value.trim();
             const filter2 = document.getElementById('grep-filter2').value.trim();
             const filter3 = document.getElementById('grep-filter3').value.trim();
+            const filter4 = document.getElementById('grep-filter4').value.trim();
+            const filter5 = document.getElementById('grep-filter5').value.trim();
             
-            if (!filter1 && !filter2 && !filter3) {
+            if (!filter1 && !filter2 && !filter3 && !filter4 && !filter5) {
                 showAlert('Please enter at least one filter keyword', 'warning');
                 return;
             }
             
-            const filters = [filter1, filter2, filter3].filter(f => f !== '');
+            const filters = [filter1, filter2, filter3, filter4, filter5].filter(f => f !== '');
             
             // Send filters to backend to apply them
             fetch('/api/apply-filters', {
