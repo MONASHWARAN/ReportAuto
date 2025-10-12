@@ -617,7 +617,7 @@ HTML_TEMPLATE = """
         function showSaveDialog() {
             // Check if there are logs to save
             const allLogsContent = document.getElementById('all-log-output').textContent;
-            if (!isLogging && (allLogsContent === 'No logs available. Click \'Start\' to begin log capture.' || 
+            if (!isLogging && (allLogsContent === "No logs available. Click 'Start' to begin log capture." || 
                 allLogsContent === 'Logs cleared.' || 
                 allLogsContent.includes('Loading'))) {
                 showErrorPopup('Save Logs Failed', 'No logs to save. Please start logging first to capture logs.');
