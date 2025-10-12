@@ -893,33 +893,51 @@ class ADBManager:
                 self.add_log_entry(f"[WARN] Device cleanup warning: {str(e)}")
                 debug_logger.warning(f"Device cleanup warning: {str(e)}")
         
-        # Step 4: ADB server reset (critical for Windows reliability)
+        # Step 5: ADB server reset (critical for Windows reliability)
         try:
             self.add_log_entry("[INFO] Resetting ADB server for clean state")
+            debug_logger.info("Killing ADB server")
             subprocess.run([self.adb_cmd, 'kill-server'], capture_output=True, timeout=5)
             time.sleep(2)
+            debug_logger.info("Starting ADB server")
             subprocess.run([self.adb_cmd, 'start-server'], capture_output=True, timeout=10)
             time.sleep(3)  # Let ADB stabilize
+            debug_logger.info("ADB server reset complete")
         except Exception as e:
             self.add_log_entry(f"[WARN] ADB server reset warning: {str(e)}")
+            debug_logger.error(f"ADB server reset error: {str(e)}", exc_info=True)
         
-        # Step 5: Clean up thread references
+        # Step 6: Clean up thread references
         if self.log_thread and self.log_thread.is_alive():
             try:
+                debug_logger.info("Waiting for log thread to terminate")
                 self.log_thread.join(timeout=2)
-            except:
-                pass
+                if self.log_thread.is_alive():
+                    debug_logger.warning("Log thread did not terminate in time")
+            except Exception as e:
+                debug_logger.error(f"Thread join error: {str(e)}")
         self.log_thread = None
         
-        # Step 6: Reset all state variables
+        # Step 7: Reset stop event for next run
+        self.stop_event.clear()
+        debug_logger.info("Stop event cleared")
+        
+        # Step 8: Reset all state variables
         self.current_device = None
         self.current_log_method = None
+        self.raw_fallback_mode = False
+        self.detection_verdict = ""
+        debug_logger.info("State variables reset")
         
-        # Step 7: Clear buffers for fresh start
+        # Step 9: Clear buffers for fresh start
         self.log_buffer.clear()
         self.filtered_log_buffer.clear()
+        debug_logger.info("Buffers cleared")
         
         self.add_log_entry("[SUCCESS] Aggressive cleanup completed")
+        debug_logger.info("=" * 60)
+        debug_logger.info("AGGRESSIVE CLEANUP COMPLETE")
+        debug_logger.info("=" * 60)
         
         # Final stabilization delay
         time.sleep(2)
