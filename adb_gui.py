@@ -1039,18 +1039,22 @@ class ADBManager:
             self.add_log_entry(f"[INFO] Starting robust logging for device: {device_id}")
             self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, ADB: {self.adb_cmd}")
             
-            # Step 3: Try log methods with Python-side filtering
+            # Step 3: Try log methods with file redirection
+            # Generate unique log file path
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.log_file_path = os.path.join(os.getcwd(), f"adb_logs_{device_id}_{timestamp}.txt")
+            
             log_methods = [
                 {
-                    'name': 'FOS/Puffin (logcat - Python filtered)',
+                    'name': 'FOS/Puffin (logcat with file redirection)',
                     'command': [self.adb_cmd, '-s', device_id, 'shell', 'logcat', '-c'],  # Clear first
-                    'stream_command': [self.adb_cmd, '-s', device_id, 'shell', 'logcat'],  # Then stream
+                    'redirect_command': f'{self.adb_cmd} -s {device_id} logcat',  # File redirection cmd
                     'os_type': 'fos'
                 },
                 {
-                    'name': 'Vega (journalctl - Python filtered)', 
+                    'name': 'Vega (journalctl with file redirection)', 
                     'command': None,  # No clear command
-                    'stream_command': [self.adb_cmd, '-s', device_id, 'shell', 'journalctl', '-f'],
+                    'redirect_command': f'{self.adb_cmd} -s {device_id} shell journalctl -f',  # File redirection cmd
                     'os_type': 'vega'
                 }
             ]
