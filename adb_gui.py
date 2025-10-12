@@ -1748,16 +1748,18 @@ def pull_file():
 def get_logs():
     """API endpoint to get current logs with status info and detection verdict"""
     try:
-        all_logs, filtered_logs = adb_manager.get_logs()
+        all_logs, filtered_logs, cosine_logs = adb_manager.get_logs()
         
         return jsonify({
             'all_logs': all_logs,
             'filtered_logs': filtered_logs,
+            'cosine_logs': cosine_logs,
             'active_filters': adb_manager.current_filters,
             'is_logging': adb_manager.is_logging_active,
             'current_device': adb_manager.current_device,
             'log_count': len(adb_manager.log_buffer),
             'filtered_count': len(adb_manager.filtered_log_buffer),
+            'cosine_count': len(adb_manager.cosine_log_buffer),
             'detection_verdict': adb_manager.detection_verdict,
             'fallback_mode': adb_manager.raw_fallback_mode
         })
@@ -1767,6 +1769,7 @@ def get_logs():
             'error': f'Error retrieving logs: {str(e)}',
             'all_logs': '',
             'filtered_logs': '',
+            'cosine_logs': '',
             'active_filters': [],
             'is_logging': False,
             'detection_verdict': '',
