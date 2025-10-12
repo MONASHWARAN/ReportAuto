@@ -720,6 +720,9 @@ class ADBManager:
         self.is_logging_active = False
         self.log_thread = None
         self.log_process = None
+        self.stop_event = threading.Event()  # Clean thread termination
+        self.raw_fallback_mode = False  # Show raw logs when no patterns match
+        self.detection_verdict = ""  # Store detection result for UI
         
         # Target patterns for Python-side filtering (base patterns)
         self.base_patterns = [
@@ -731,6 +734,8 @@ class ADBManager:
         
         # ADB command setup
         self.adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
+        
+        debug_logger.info(f"ADBManager initialized for platform: {self.platform_system}")
         
     def get_connected_devices(self):
         """Get list of connected ADB devices - Windows compatible"""
