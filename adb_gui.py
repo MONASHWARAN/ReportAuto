@@ -1155,6 +1155,8 @@ class ADBManager:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
+                    encoding='utf-8',  # Force UTF-8 encoding for Android logs
+                    errors='replace',  # Replace undecodable bytes with ?
                     bufsize=0,
                     universal_newlines=True
                 )
