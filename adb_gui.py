@@ -769,7 +769,7 @@ HTML_TEMPLATE = """
         }
 
         function hideLoadingInLogs() {
-            document.getElementById('all-log-output').textContent = 'No logs available. Click \'Start\' to begin log capture.';
+            document.getElementById('all-log-output').textContent = "No logs available. Click 'Start' to begin log capture.";
             document.getElementById('filtered-log-output').textContent = 'No filtered logs available.';
         }
 
