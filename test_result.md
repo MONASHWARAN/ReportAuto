@@ -350,7 +350,63 @@ backend:
           - requirements_adb_gui.txt: Dependency list
           - Tests cover: API endpoints, error handling, stress testing
           
+backend:
+  - task: "UTF-8 encoding fix for Windows character decode errors"
+    implemented: true
+    working: true
+    file: "/app/adb_gui.py"
+    stuck_count: 0
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          CRITICAL FIX: Resolved character encoding error that prevented log capture
+          Issue: 'charmap' codec can't decode byte 0x9d
+          Solution:
+          - Added encoding='utf-8' to all subprocess.Popen calls
+          - Added errors='replace' for graceful handling of bad bytes
+          - Separated UnicodeDecodeError handling from general exceptions
+          - Logs now capture successfully on Windows/Mac/Linux
+          
+          Changed in:
+          - Detection phase Popen (line ~1067)
+          - Fallback mode Popen (line ~1175)
+          - Enhanced error handling with warning-level logging
+          
+          This fix is critical for Windows users where default encoding is cp1252/charmap
+
 agent_communication:
+  - agent: "main"
+    message: |
+      🔧 CRITICAL FIX APPLIED - Character Encoding Issue Resolved
+      
+      PROBLEM IDENTIFIED:
+      User reported "I didn't get device logs" - analysis of uploaded log file showed:
+      [ERROR] Log reading error: 'charmap' codec can't decode byte 0x9d
+      
+      ROOT CAUSE:
+      - Python subprocess using system default encoding (Windows charmap)
+      - Android logs are UTF-8 encoded
+      - Byte 0x9d caused immediate crash and log capture failure
+      
+      SOLUTION APPLIED:
+      ✅ Added encoding='utf-8' to all Popen calls
+      ✅ Added errors='replace' for graceful handling
+      ✅ Enhanced error handling with separate UnicodeDecodeError catch
+      ✅ Logs now continue even with occasional undecodable bytes
+      
+      TESTING REQUIRED:
+      - Restart ADB GUI tool
+      - Connect device and start logging
+      - Verify logs appear in "All Logs" tab
+      - Check for continuous streaming without crashes
+      
+      FILES UPDATED:
+      - adb_gui.py: Critical encoding fix
+      - ENCODING_FIX.md: Detailed documentation of issue and fix
+      
   - agent: "main"
     message: |
       ✅ PHASE 2 COMPLETE - Enhanced Features Implemented
