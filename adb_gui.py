@@ -1041,8 +1041,11 @@ class ADBManager:
                 }
             ]
             
+            debug_logger.info(f"Starting detection phase for device {device_id}")
+            
             for i, method in enumerate(log_methods, 1):
                 self.add_log_entry(f"[INFO] Trying method {i}/2: {method['name']}")
+                debug_logger.info(f"Detection attempt {i}/2: {method['name']}")
                 
                 try:
                     # Clear buffer for FOS
