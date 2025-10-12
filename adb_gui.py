@@ -546,6 +546,15 @@ HTML_TEMPLATE = """
         }
 
         async function clearLogs() {
+            // Check if there are logs to clear
+            const allLogsContent = document.getElementById('all-log-output').textContent;
+            if (!isLogging && (allLogsContent === 'No logs available. Click \'Start\' to begin log capture.' || 
+                allLogsContent === 'Logs cleared.' || 
+                allLogsContent.includes('Loading'))) {
+                showErrorPopup('Clear Logs Failed', 'No logs to clear. Please start logging first to capture logs.');
+                return;
+            }
+
             document.getElementById('all-log-output').textContent = 'Logs cleared.';
             document.getElementById('filtered-log-output').textContent = 'Logs cleared.';
             
