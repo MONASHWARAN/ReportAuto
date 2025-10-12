@@ -710,10 +710,22 @@ HTML_TEMPLATE = """
                 const data = await response.json();
                 
                 if (data.all_logs) {
-                    document.getElementById('all-log-output').textContent = data.all_logs;
+                    // Remove loading indicator if it exists
+                    const allLogOutput = document.getElementById('all-log-output');
+                    if (allLogOutput.innerHTML.includes('loading-indicator')) {
+                        // First logs arrived, hide loading
+                        allLogOutput.textContent = data.all_logs;
+                    } else {
+                        allLogOutput.textContent = data.all_logs;
+                    }
                 }
                 if (data.filtered_logs !== undefined) {
                     const filteredOutput = document.getElementById('filtered-log-output');
+                    // Remove loading indicator if it exists
+                    if (filteredOutput.innerHTML.includes('loading-indicator')) {
+                        filteredOutput.textContent = '';
+                    }
+                    
                     if (data.filtered_logs === "" || data.filtered_logs.includes('<div class="text-muted')) {
                         // HTML message for no matches or empty
                         filteredOutput.innerHTML = data.filtered_logs || `
