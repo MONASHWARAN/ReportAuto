@@ -17,6 +17,8 @@ import queue
 import signal
 import sys
 import re
+import logging
+from logging.handlers import RotatingFileHandler
 
 # Windows-specific subprocess constants
 if platform.system().lower() == 'windows':
