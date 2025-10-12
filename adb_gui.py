@@ -1465,40 +1465,59 @@ Enter filter keywords and start logging to see matches.
             if not remote_paths:
                 return False, f"Unsupported OS type: {os_type}"
             
-            # Try each path until one works
+            # Try each path with retry logic (3 attempts per path)
             for i, remote_path in enumerate(remote_paths, 1):
-                try:
-                    print(f"Trying path {i}/{len(remote_paths)}: {remote_path} ({self.platform_system})")
-                    
-                    # Execute ADB pull command
-                    result = subprocess.run([adb_cmd, '-s', device_id, 'pull', remote_path, local_filename], 
-                                          capture_output=True, text=True, timeout=30)
-                    
-                    if result.returncode == 0 and os.path.exists(local_filename):
-                        # Check if file has actual content (not empty)
-                        file_size = os.path.getsize(local_filename)
-                        if file_size > 0:
-                            return True, f"✅ Successfully pulled {os_type.upper()} CHR.db to {local_filename} ({file_size} bytes) on {self.platform_system.title()}"
-                        else:
-                            # File exists but is empty, try next path
-                            os.remove(local_filename)
-                            continue
-                    else:
-                        # Command failed, try next path
-                        if os.path.exists(local_filename):
-                            os.remove(local_filename)
-                        continue
+                debug_logger.info(f"Trying path {i}/{len(remote_paths)}: {remote_path}")
+                
+                for attempt in range(3):  # 3 retries per path
+                    try:
+                        if attempt > 0:
+                            debug_logger.debug(f"Retry attempt {attempt + 1}/3 for path: {remote_path}")
+                            time.sleep(1)  # Brief delay before retry
                         
-                except subprocess.TimeoutExpired:
-                    return False, f"Pull operation timed out for {os_type} on {self.platform_system.title()}"
-                except Exception as e:
-                    print(f"Error trying path {remote_path} on {self.platform_system}: {str(e)}")
-                    continue
+                        # Execute ADB pull command
+                        result = self._run_adb_with_retry(
+                            [self.adb_cmd, '-s', device_id, 'pull', remote_path, local_filename.strip('"')],
+                            max_attempts=2, timeout=30
+                        )
+                        
+                        if result and result.returncode == 0:
+                            # Check if file exists and has content
+                            actual_filename = local_filename.strip('"')
+                            if os.path.exists(actual_filename):
+                                file_size = os.path.getsize(actual_filename)
+                                if file_size > 0:
+                                    debug_logger.info(f"✅ Successfully pulled file: {actual_filename} ({file_size} bytes)")
+                                    return True, f"✅ Successfully pulled {os_type.upper()} CHR.db to {actual_filename} ({file_size} bytes)"
+                                else:
+                                    # File exists but is empty, try next path
+                                    debug_logger.warning(f"Pulled file is empty: {actual_filename}")
+                                    os.remove(actual_filename)
+                                    break  # Break retry loop, try next path
+                        else:
+                            # Command failed
+                            actual_filename = local_filename.strip('"')
+                            if os.path.exists(actual_filename):
+                                os.remove(actual_filename)
+                            if attempt == 2:  # Last attempt for this path
+                                debug_logger.warning(f"All retries failed for path: {remote_path}")
+                                break
+                            
+                    except subprocess.TimeoutExpired:
+                        debug_logger.error(f"Pull operation timed out for path: {remote_path}")
+                        if attempt == 2:
+                            return False, f"Pull operation timed out for {os_type}"
+                    except Exception as e:
+                        debug_logger.error(f"Error on path {remote_path} (attempt {attempt + 1}): {str(e)}")
+                        if attempt == 2:
+                            break  # Try next path
             
-            return False, f"❌ Failed to pull {os_type.upper()} CHR.db - file not found in any expected location ({self.platform_system.title()})"
+            debug_logger.error(f"All paths failed for {os_type}")
+            return False, f"❌ Failed to pull {os_type.upper()} CHR.db - file not found in any expected location"
                 
         except Exception as e:
-            return False, f"Error pulling CHR file on {self.platform_system.title()}: {str(e)}"
+            debug_logger.error(f"CHR file pull exception: {str(e)}", exc_info=True)
+            return False, f"Error pulling CHR file: {str(e)}"
 
 # Initialize ADB Manager
 adb_manager = ADBManager()
