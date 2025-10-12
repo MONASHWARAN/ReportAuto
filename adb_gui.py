@@ -948,6 +948,15 @@ class ADBManager:
         self.filtered_log_buffer.clear()
         debug_logger.info("Buffers cleared")
         
+        # Step 10: Clean up log file
+        if hasattr(self, 'log_file_path') and self.log_file_path and os.path.exists(self.log_file_path):
+            try:
+                os.remove(self.log_file_path)
+                debug_logger.info(f"Removed log file: {self.log_file_path}")
+            except Exception as e:
+                debug_logger.warning(f"Could not remove log file: {str(e)}")
+        self.log_file_path = None
+        
         self.add_log_entry("[SUCCESS] Aggressive cleanup completed")
         debug_logger.info("=" * 60)
         debug_logger.info("AGGRESSIVE CLEANUP COMPLETE")
