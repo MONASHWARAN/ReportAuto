@@ -1094,6 +1094,7 @@ class ADBManager:
                                 
                                 if lines_received >= 5:  # Success criteria: 5+ lines
                                     self.add_log_entry(f"[SUCCESS] {method['name']} working! Got {lines_received} lines")
+                                    debug_logger.info(f"✅ Detection successful: {method['name']} ({lines_received} lines in {time.time() - start_time:.1f}s)")
                                     
                                     # This method works, start actual logging
                                     self.log_process = test_process
@@ -1102,6 +1103,7 @@ class ADBManager:
                                     self.is_logging_active = True
                                     
                                     self.current_log_method = method
+                                    self.detection_verdict = f"✅ Auto-detected: {method['os_type'].upper()} ({method['name']})"
                                     
                                     # Start background thread for continuous reading with Python filtering
                                     self.log_thread = threading.Thread(
@@ -1109,6 +1111,7 @@ class ADBManager:
                                         daemon=True
                                     )
                                     self.log_thread.start()
+                                    debug_logger.info("Background reader thread started")
                                     
                                     return True, f"✅ Started robust logging for {device_id} using {method['name']} (Detected: {method['os_type'].upper()})"
                         
