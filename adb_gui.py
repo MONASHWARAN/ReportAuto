@@ -1060,6 +1060,7 @@ class ADBManager:
             ]
             
             debug_logger.info(f"Starting detection phase for device {device_id}")
+            debug_logger.info(f"Log file path: {self.log_file_path}")
             
             for i, method in enumerate(log_methods, 1):
                 self.add_log_entry(f"[INFO] Trying method {i}/2: {method['name']}")
@@ -1072,84 +1073,72 @@ class ADBManager:
                         subprocess.run(method['command'], capture_output=True, timeout=5)
                         time.sleep(1)
                     
-                    # Start streaming process (no shell pipes!)
-                    self.add_log_entry(f"[INFO] Starting raw log stream: {' '.join(method['stream_command'])}")
-                    debug_logger.debug(f"Popen command: {method['stream_command']}")
+                    # Start streaming process with file redirection using shell
+                    full_command = f"{method['redirect_command']} > \"{self.log_file_path}\""
+                    self.add_log_entry(f"[INFO] Starting log capture with file redirection")
+                    debug_logger.debug(f"Shell command: {full_command}")
                     
+                    # Use shell=True for redirection to work
                     test_process = subprocess.Popen(
-                        method['stream_command'],
+                        full_command,
+                        shell=True,
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
-                        text=True,
-                        encoding='utf-8',  # Force UTF-8 encoding for Android logs
-                        errors='replace',  # Replace undecodable bytes with ?
-                        bufsize=0,  # Unbuffered for real-time
-                        universal_newlines=True
+                        text=True
                     )
                     debug_logger.debug(f"Started process PID: {test_process.pid}")
                     
-                    # Test for 30 seconds (extended detection time)
-                    self.add_log_entry("[INFO] Testing log stream for 30 seconds...")
-                    lines_received = 0
+                    # Test for 10 seconds to see if file is being written
+                    self.add_log_entry("[INFO] Testing log capture for 10 seconds...")
                     start_time = time.time()
+                    time.sleep(5)  # Wait for file to be created and written
                     
-                    while time.time() - start_time < 30:
-                        if test_process.poll() is not None:
-                            # Process died
-                            try:
-                                _, stderr = test_process.communicate(timeout=2)
-                                self.add_log_entry(f"[ERROR] {method['name']} process died: {stderr.strip()}")
-                                break
-                            except:
-                                self.add_log_entry(f"[ERROR] {method['name']} process died unexpectedly")
-                                break
-                        
-                        try:
-                            # Non-blocking read attempt
-                            line = test_process.stdout.readline()
-                            if line:
-                                lines_received += 1
-                                if lines_received <= 3:  # Show first few lines
-                                    self.add_log_entry(f"[SAMPLE] {line.strip()}")
-                                
-                                if lines_received >= 5:  # Success criteria: 5+ lines
-                                    self.add_log_entry(f"[SUCCESS] {method['name']} working! Got {lines_received} lines")
-                                    debug_logger.info(f"✅ Detection successful: {method['name']} ({lines_received} lines in {time.time() - start_time:.1f}s)")
-                                    
-                                    # This method works, start actual logging
-                                    self.log_process = test_process
-                                    log_process = test_process
-                                    is_logging = True
-                                    self.is_logging_active = True
-                                    
-                                    self.current_log_method = method
-                                    self.detection_verdict = f"✅ Auto-detected: {method['os_type'].upper()} ({method['name']})"
-                                    
-                                    # Start background thread for continuous reading with Python filtering
-                                    self.log_thread = threading.Thread(
-                                        target=self._read_logs_with_python_filtering, 
-                                        daemon=True
-                                    )
-                                    self.log_thread.start()
-                                    debug_logger.info("Background reader thread started")
-                                    
-                                    return True, f"✅ Started robust logging for {device_id} using {method['name']} (Detected: {method['os_type'].upper()})"
-                        
-                        except Exception as e:
-                            # Non-critical read error, continue testing
-                            pass
-                        
-                        time.sleep(0.1)  # Brief pause between read attempts
+                    # Check if file exists and has content
+                    if os.path.exists(self.log_file_path):
+                        file_size = os.path.getsize(self.log_file_path)
+                        if file_size > 100:  # At least 100 bytes written
+                            self.add_log_entry(f"[SUCCESS] {method['name']} working! File size: {file_size} bytes")
+                            debug_logger.info(f"✅ Detection successful: {method['name']} (file size: {file_size} bytes)")
+                            
+                            # This method works, start actual logging
+                            self.log_process = test_process
+                            log_process = test_process
+                            is_logging = True
+                            self.is_logging_active = True
+                            
+                            self.current_log_method = method
+                            self.detection_verdict = f"✅ Auto-detected: {method['os_type'].upper()} ({method['name']})"
+                            
+                            # Start background thread for reading file
+                            self.log_thread = threading.Thread(
+                                target=self._read_logs_from_file, 
+                                daemon=True
+                            )
+                            self.log_thread.start()
+                            debug_logger.info("Background file reader thread started")
+                            
+                            return True, f"✅ Started logging for {device_id} using {method['name']} (Detected: {method['os_type'].upper()})"
+                        else:
+                            self.add_log_entry(f"[WARN] File created but no significant data ({file_size} bytes)")
+                            debug_logger.warning(f"File exists but insufficient data: {file_size} bytes")
+                    else:
+                        self.add_log_entry(f"[WARN] Log file not created after 5 seconds")
+                        debug_logger.warning("Log file was not created")
                     
-                    # Method failed - didn't get enough output
-                    self.add_log_entry(f"[WARN] {method['name']} insufficient output ({lines_received} lines in 30s)")
-                    
+                    # Method failed - clean up
                     try:
                         test_process.terminate()
                         test_process.wait(timeout=2)
                     except:
                         try:
                             test_process.kill()
+                        except:
+                            pass
+                    
+                    # Remove failed log file
+                    if os.path.exists(self.log_file_path):
+                        try:
+                            os.remove(self.log_file_path)
                         except:
                             pass
                     
