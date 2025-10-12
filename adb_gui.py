@@ -1056,6 +1056,7 @@ class ADBManager:
                     
                     # Start streaming process (no shell pipes!)
                     self.add_log_entry(f"[INFO] Starting raw log stream: {' '.join(method['stream_command'])}")
+                    debug_logger.debug(f"Popen command: {method['stream_command']}")
                     
                     test_process = subprocess.Popen(
                         method['stream_command'],
@@ -1065,6 +1066,7 @@ class ADBManager:
                         bufsize=0,  # Unbuffered for real-time
                         universal_newlines=True
                     )
+                    debug_logger.debug(f"Started process PID: {test_process.pid}")
                     
                     # Test for 30 seconds (extended detection time)
                     self.add_log_entry("[INFO] Testing log stream for 30 seconds...")
