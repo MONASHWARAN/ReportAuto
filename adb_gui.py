@@ -808,11 +808,20 @@ class ADBManager:
         """Aggressive cleanup for robust restart capability"""
         global log_process, is_logging
         
+        debug_logger.info("=" * 60)
+        debug_logger.info("STARTING AGGRESSIVE CLEANUP")
+        debug_logger.info("=" * 60)
+        
         self.add_log_entry("[INFO] Starting aggressive cleanup for robust restart")
         
-        # Step 1: Stop Python logging
+        # Step 1: Signal threads to stop
+        debug_logger.info("Step 1: Signaling stop event")
+        self.stop_event.set()
+        
+        # Step 2: Stop Python logging flags
         is_logging = False
         self.is_logging_active = False
+        debug_logger.info("Step 2: Logging flags set to False")
         
         # Step 2: Kill Python log process
         if self.log_process:
