@@ -774,16 +774,13 @@ class ADBManager:
         return None
         
     def get_connected_devices(self):
-        """Get list of connected ADB devices - Windows compatible"""
+        """Get list of connected ADB devices - Windows compatible with retry logic"""
         try:
-            # Determine ADB executable name based on platform
-            adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
+            debug_logger.info("Getting connected ADB devices")
+            result = self._run_adb_with_retry([self.adb_cmd, 'devices'], max_attempts=3, timeout=10)
             
-            result = subprocess.run([adb_cmd, 'devices'], 
-                                  capture_output=True, text=True, timeout=10)
-            
-            if result.returncode != 0:
-                print(f"ADB devices command failed: {result.stderr}")
+            if not result or result.returncode != 0:
+                debug_logger.error(f"ADB devices command failed: {result.stderr if result else 'No result'}")
                 return []
             
             devices = []
@@ -797,14 +794,14 @@ class ADBManager:
                         status = parts[1]
                         devices.append({'id': device_id, 'status': status})
             
-            print(f"Found {len(devices)} ADB devices ({self.platform_system})")
+            debug_logger.info(f"Found {len(devices)} ADB devices: {[d['id'] for d in devices]}")
             return devices
             
         except FileNotFoundError:
-            print(f"ADB executable not found. Make sure ADB is installed and in PATH ({self.platform_system})")
+            debug_logger.error(f"ADB executable not found in PATH: {self.adb_cmd}")
             return []
         except Exception as e:
-            print(f"Error getting devices ({self.platform_system}): {e}")
+            debug_logger.error(f"Error getting devices: {str(e)}", exc_info=True)
             return []
     
     def aggressive_cleanup(self, device_id=None):
