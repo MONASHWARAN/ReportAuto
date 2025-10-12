@@ -609,6 +609,15 @@ HTML_TEMPLATE = """
         }
 
         function showSaveDialog() {
+            // Check if there are logs to save
+            const allLogsContent = document.getElementById('all-log-output').textContent;
+            if (!isLogging && (allLogsContent === 'No logs available. Click \'Start\' to begin log capture.' || 
+                allLogsContent === 'Logs cleared.' || 
+                allLogsContent.includes('Loading'))) {
+                showErrorPopup('Save Logs Failed', 'No logs to save. Please start logging first to capture logs.');
+                return;
+            }
+
             // Set default filename with timestamp
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
             document.getElementById('filename-input').value = `adb_logs_${timestamp}`;
