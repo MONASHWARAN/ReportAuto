@@ -696,11 +696,23 @@ class ADBManager:
         self.current_device = None
         self.log_buffer = []
         self.filtered_log_buffer = []
-        self.current_filters = []  # Changed to support multiple filters
-        self.platform_system = platform.system().lower()  # Detect OS for grep/findstr
-        self.current_log_method = None  # Store the successful log method
-        self.is_logging_active = False  # Track logging state
-        self.log_process_pid = None  # Track process for cleanup
+        self.current_filters = []  # User filters
+        self.platform_system = platform.system().lower()
+        self.current_log_method = None
+        self.is_logging_active = False
+        self.log_thread = None
+        self.log_process = None
+        
+        # Target patterns for Python-side filtering (base patterns)
+        self.base_patterns = [
+            r"CosineSimilarityCache::LookupImpl",
+            r"eventType=Speech", 
+            r"RESULT_GENERATOR",
+            r"Calling onCacheUpdate"
+        ]
+        
+        # ADB command setup
+        self.adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
         
     def get_connected_devices(self):
         """Get list of connected ADB devices - Windows compatible"""
