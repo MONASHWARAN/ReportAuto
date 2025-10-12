@@ -1354,6 +1354,17 @@ class ADBManager:
                                     if len(self.log_buffer) > 2000:
                                         self.log_buffer.pop(0)
                                     
+                                    # Check for CosineSimilarity patterns
+                                    matches_cosine = any(
+                                        re.search(pattern, line, re.IGNORECASE) 
+                                        for pattern in self.cosine_patterns
+                                    )
+                                    if matches_cosine:
+                                        self.cosine_log_buffer.append(log_entry)
+                                        if len(self.cosine_log_buffer) > 2000:
+                                            self.cosine_log_buffer.pop(0)
+                                        debug_logger.debug(f"CosineSimilarity pattern match")
+                                    
                                     # Apply user filters for filtered log tab
                                     if self.current_filters:
                                         for user_filter in self.current_filters:
