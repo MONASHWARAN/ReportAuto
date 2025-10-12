@@ -35,6 +35,22 @@ if platform.system().lower() == 'windows':
 
 app = Flask(__name__)
 
+# Setup debug logging to file
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s')
+log_handler = RotatingFileHandler('logfetcher_debug.log', maxBytes=10*1024*1024, backupCount=3)
+log_handler.setFormatter(log_formatter)
+log_handler.setLevel(logging.DEBUG)
+
+debug_logger = logging.getLogger('ADBLogFetcher')
+debug_logger.setLevel(logging.DEBUG)
+debug_logger.addHandler(log_handler)
+
+# Also log to console
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.INFO)
+debug_logger.addHandler(console_handler)
+
 # Global variables for log management
 log_queue = queue.Queue()
 filtered_log_queue = queue.Queue()
