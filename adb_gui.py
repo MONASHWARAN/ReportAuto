@@ -812,6 +812,7 @@ HTML_TEMPLATE = """
                 </div>
             `;
             document.getElementById('all-log-output').innerHTML = loadingHTML;
+            document.getElementById('cosine-log-output').innerHTML = loadingHTML;
             document.getElementById('filtered-log-output').innerHTML = loadingHTML;
         }
 
