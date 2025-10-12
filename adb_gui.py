@@ -1297,12 +1297,14 @@ class ADBManager:
                     time.sleep(1)  # Brief pause before retry
         
         except Exception as e:
-            print(f"Python filtering thread fatal error: {e}")
+            debug_logger.error(f"Python filtering thread fatal error: {str(e)}", exc_info=True)
             self.add_log_entry(f"[ERROR] Log filtering thread failed: {str(e)}")
         
         finally:
+            is_logging = False
+            self.is_logging_active = False
             self.add_log_entry("[INFO] Python-side log filtering thread terminated")
-            print("Python-side log filtering thread terminated")
+            debug_logger.info("Log reader thread terminated")
 
     def stop_logging(self):
         """Stop logging with aggressive cleanup"""
