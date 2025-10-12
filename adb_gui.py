@@ -1207,8 +1207,8 @@ class ADBManager:
             self.aggressive_cleanup()
             return False, f"❌ Logging startup error: {str(e)}"
     
-    def _read_logs_with_python_filtering(self):
-        """Read logs continuously with Python-side filtering and device disconnect detection"""
+    def _read_logs_from_file(self):
+        """Read logs continuously from file with grep filtering"""
         global is_logging
         
         self.add_log_entry("[INFO] Starting Python-side log filtering thread")
