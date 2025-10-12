@@ -1493,16 +1493,18 @@ No CosineSimilarityCache logs available.<br>
         """Clear log buffers with validation"""
         log_count = len(self.log_buffer)
         filtered_count = len(self.filtered_log_buffer)
+        cosine_count = len(self.cosine_log_buffer)
         
-        if log_count == 0 and filtered_count == 0:
+        if log_count == 0 and filtered_count == 0 and cosine_count == 0:
             print("No logs to clear")
             return "ℹ️ No logs to clear"
         
         self.log_buffer.clear()
         self.filtered_log_buffer.clear()
+        self.cosine_log_buffer.clear()
         
-        print(f"Cleared {log_count} main logs and {filtered_count} filtered logs")
-        return f"✅ Cleared {log_count} main logs and {filtered_count} filtered logs"
+        print(f"Cleared {log_count} main logs, {filtered_count} filtered logs, and {cosine_count} cosine logs")
+        return f"✅ Cleared {log_count} main logs, {filtered_count} filtered logs, and {cosine_count} cosine logs"
     
     def set_filters(self, filter_keywords):
         """Set multiple log filters"""
