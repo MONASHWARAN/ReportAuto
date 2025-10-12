@@ -364,6 +364,11 @@ HTML_TEMPLATE = """
                                 </a>
                             </li>
                             <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#cosine-logs">
+                                    <i class="fas fa-code-branch"></i> CosineSimilarityCache
+                                </a>
+                            </li>
+                            <li class="nav-item">
                                 <a class="nav-link" data-bs-toggle="tab" href="#filtered-logs">
                                     <i class="fas fa-filter"></i> Filtered Logs
                                 </a>
@@ -375,6 +380,24 @@ HTML_TEMPLATE = """
                             <div class="tab-pane fade show active" id="all-logs">
                                 <div class="log-output" id="all-log-output">
                                     No logs available. Click 'Start' to begin log capture.
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="cosine-logs">
+                                <div class="log-output" id="cosine-log-output">
+                                    <div class="text-muted text-center p-4">
+                                        <i class="fas fa-code-branch fa-2x mb-2"></i><br>
+                                        No CosineSimilarityCache logs available.<br>
+                                        Start logging to see matching patterns.
+                                        <div class="mt-2 text-start">
+                                            <small>Patterns:</small>
+                                            <ul class="text-muted" style="font-size: 0.85rem;">
+                                                <li>CosineSimilarityCache::LookupImpl</li>
+                                                <li>eventType=Speech</li>
+                                                <li>RESULT_GENERATOR</li>
+                                                <li>Calling onCacheUpdate</li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                             <div class="tab-pane fade" id="filtered-logs">
