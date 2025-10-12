@@ -888,6 +888,10 @@ class ADBManager:
                     print(f"FILTERED LOG MATCH: '{filter_keyword}' found in: {message.strip()}")
                     break
     
+    def start_logging(self, device_id):
+        """Main entry point for starting logging - delegates to robust implementation"""
+        return self.start_logging_robust(device_id)
+    
     def start_logging_robust(self, device_id):
         """Robust logging with Python-side filtering (no shell pipes)"""
         global log_process, is_logging
