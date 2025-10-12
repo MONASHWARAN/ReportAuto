@@ -1288,6 +1288,19 @@ class ADBManager:
                         # No line read, brief pause to avoid busy waiting
                         time.sleep(0.05)
                         
+                except UnicodeDecodeError as e:
+                    # Handle encoding errors gracefully
+                    consecutive_errors += 1
+                    debug_logger.warning(f"Unicode decode error ({consecutive_errors}/{max_consecutive_errors}): {str(e)}")
+                    self.add_log_entry(f"[WARN] Encoding issue encountered, continuing with replacement characters")
+                    
+                    if consecutive_errors >= max_consecutive_errors:
+                        debug_logger.error("Too many consecutive encoding errors, stopping reader thread")
+                        self.add_log_entry("[ERROR] Too many encoding errors, stopping log reader")
+                        break
+                    
+                    time.sleep(0.1)  # Brief pause before retry
+                    
                 except Exception as e:
                     consecutive_errors += 1
                     debug_logger.error(f"Log reading error ({consecutive_errors}/{max_consecutive_errors}): {str(e)}")
