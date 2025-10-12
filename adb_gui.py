@@ -1208,20 +1208,21 @@ class ADBManager:
             return False, f"❌ Logging startup error: {str(e)}"
     
     def _read_logs_from_file(self):
-        """Read logs continuously from file with grep filtering"""
+        """Read logs continuously from redirected file with grep filtering"""
         global is_logging
         
-        self.add_log_entry("[INFO] Starting Python-side log filtering thread")
-        debug_logger.info("Log reader thread started")
+        self.add_log_entry("[INFO] Starting file-based log reading thread")
+        debug_logger.info(f"File reader thread started, monitoring: {self.log_file_path}")
         
         consecutive_errors = 0
         max_consecutive_errors = 10
+        last_position = 0
         
         try:
-            while is_logging and self.is_logging_active and self.log_process and not self.stop_event.is_set():
+            while is_logging and self.is_logging_active and not self.stop_event.is_set():
                 try:
                     # Check if process is still alive (device disconnect detection)
-                    if self.log_process.poll() is not None:
+                    if self.log_process and self.log_process.poll() is not None:
                         returncode = self.log_process.returncode
                         self.add_log_entry(f"[ERROR] Log process terminated unexpectedly (exit code: {returncode})")
                         debug_logger.error(f"Log process died with return code: {returncode}")
@@ -1233,50 +1234,26 @@ class ADBManager:
                             debug_logger.error(f"Device {self.current_device} disconnected")
                         break
                     
-                    # Read line with timeout awareness
-                    line = self.log_process.stdout.readline()
-                    
-                    if line:
-                        consecutive_errors = 0  # Reset error counter on successful read
-                        line = line.strip()
-                        if line:  # Non-empty line
-                            timestamp = datetime.now().strftime("%H:%M:%S")
-                            log_entry = f"[{timestamp}] {line}\n"
+                    # Read new lines from file
+                    if os.path.exists(self.log_file_path):
+                        with open(self.log_file_path, 'r', encoding='utf-8', errors='replace') as f:
+                            f.seek(last_position)
+                            new_lines = f.readlines()
+                            last_position = f.tell()
                             
-                            # In fallback mode, show all logs without pattern filtering
-                            if self.raw_fallback_mode:
-                                # Add to main log buffer (all logs in fallback mode)
-                                self.log_buffer.append(log_entry)
-                                if len(self.log_buffer) > 2000:
-                                    self.log_buffer.pop(0)
-                                
-                                # Apply user filters if any
-                                if self.current_filters:
-                                    for user_filter in self.current_filters:
-                                        if user_filter and user_filter.lower() in line.lower():
-                                            self.filtered_log_buffer.append(log_entry)
-                                            if len(self.filtered_log_buffer) > 2000:
-                                                self.filtered_log_buffer.pop(0)
-                                            break
-                                else:
-                                    # No user filters, show all in fallback
-                                    self.filtered_log_buffer.append(log_entry)
-                                    if len(self.filtered_log_buffer) > 2000:
-                                        self.filtered_log_buffer.pop(0)
-                            else:
-                                # Normal mode: Check if line matches base patterns
-                                matches_base_pattern = any(
-                                    re.search(pattern, line, re.IGNORECASE) 
-                                    for pattern in self.base_patterns
-                                )
-                            
-                                if matches_base_pattern:
-                                    # Add to main log buffer (all base pattern matches)
+                            for line in new_lines:
+                                consecutive_errors = 0  # Reset error counter on successful read
+                                line = line.strip()
+                                if line:  # Non-empty line
+                                    timestamp = datetime.now().strftime("%H:%M:%S")
+                                    log_entry = f"[{timestamp}] {line}\n"
+                                    
+                                    # Add all lines to main log buffer
                                     self.log_buffer.append(log_entry)
-                                    if len(self.log_buffer) > 2000:  # Buffer size cap at 2000
+                                    if len(self.log_buffer) > 2000:
                                         self.log_buffer.pop(0)
                                     
-                                    # Apply user filters on top of base filtering
+                                    # Apply user filters for filtered log tab
                                     if self.current_filters:
                                         for user_filter in self.current_filters:
                                             if user_filter and user_filter.lower() in line.lower():
@@ -1286,49 +1263,53 @@ class ADBManager:
                                                 debug_logger.debug(f"User filter match: '{user_filter}'")
                                                 break
                                     else:
-                                        # No user filters, show all base pattern matches
+                                        # No filters applied, show all logs in filtered tab too
                                         self.filtered_log_buffer.append(log_entry)
                                         if len(self.filtered_log_buffer) > 2000:
                                             self.filtered_log_buffer.pop(0)
-                    
                     else:
-                        # No line read, brief pause to avoid busy waiting
-                        time.sleep(0.05)
+                        # File doesn't exist yet, wait
+                        self.add_log_entry("[WARN] Log file not found, waiting...")
+                        debug_logger.warning(f"Log file not found: {self.log_file_path}")
+                        time.sleep(2)
+                    
+                    # Brief pause to avoid busy waiting
+                    time.sleep(0.5)
                         
                 except UnicodeDecodeError as e:
                     # Handle encoding errors gracefully
                     consecutive_errors += 1
                     debug_logger.warning(f"Unicode decode error ({consecutive_errors}/{max_consecutive_errors}): {str(e)}")
-                    self.add_log_entry(f"[WARN] Encoding issue encountered, continuing with replacement characters")
+                    self.add_log_entry(f"[WARN] Encoding issue encountered, continuing")
                     
                     if consecutive_errors >= max_consecutive_errors:
                         debug_logger.error("Too many consecutive encoding errors, stopping reader thread")
                         self.add_log_entry("[ERROR] Too many encoding errors, stopping log reader")
                         break
                     
-                    time.sleep(0.1)  # Brief pause before retry
+                    time.sleep(0.5)
                     
                 except Exception as e:
                     consecutive_errors += 1
-                    debug_logger.error(f"Log reading error ({consecutive_errors}/{max_consecutive_errors}): {str(e)}")
-                    self.add_log_entry(f"[ERROR] Log reading error: {str(e)}")
+                    debug_logger.error(f"File reading error ({consecutive_errors}/{max_consecutive_errors}): {str(e)}")
+                    self.add_log_entry(f"[ERROR] File reading error: {str(e)}")
                     
                     if consecutive_errors >= max_consecutive_errors:
                         debug_logger.error("Too many consecutive errors, stopping reader thread")
                         self.add_log_entry("[ERROR] Too many errors, stopping log reader")
                         break
                     
-                    time.sleep(1)  # Brief pause before retry
+                    time.sleep(1)
         
         except Exception as e:
-            debug_logger.error(f"Python filtering thread fatal error: {str(e)}", exc_info=True)
-            self.add_log_entry(f"[ERROR] Log filtering thread failed: {str(e)}")
+            debug_logger.error(f"File reader thread fatal error: {str(e)}", exc_info=True)
+            self.add_log_entry(f"[ERROR] File reader thread failed: {str(e)}")
         
         finally:
             is_logging = False
             self.is_logging_active = False
-            self.add_log_entry("[INFO] Python-side log filtering thread terminated")
-            debug_logger.info("Log reader thread terminated")
+            self.add_log_entry("[INFO] File-based log reading thread terminated")
+            debug_logger.info("File reader thread terminated")
 
     def stop_logging(self):
         """Stop logging with aggressive cleanup"""
