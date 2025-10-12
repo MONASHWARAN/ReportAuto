@@ -1135,10 +1135,62 @@ class ADBManager:
                     
                 except Exception as e:
                     self.add_log_entry(f"[ERROR] {method['name']} exception: {str(e)}")
+                    debug_logger.error(f"Detection method {method['name']} exception: {str(e)}", exc_info=True)
                     continue
             
-            # All methods failed
-            return False, "❌ All logging methods failed. Ensure device is generating logs and applications are active."
+            # All detection methods failed - Enter fallback mode with logcat
+            debug_logger.warning("All detection methods failed, entering fallback mode")
+            self.add_log_entry("[WARN] Detection failed for both methods")
+            self.add_log_entry("[INFO] Entering RAW FALLBACK MODE with logcat (showing all logs)")
+            
+            try:
+                # Use logcat as default fallback (no pattern filtering)
+                fallback_command = [self.adb_cmd, '-s', device_id, 'shell', 'logcat']
+                debug_logger.info(f"Starting fallback logcat: {fallback_command}")
+                
+                test_process = subprocess.Popen(
+                    fallback_command,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    bufsize=0,
+                    universal_newlines=True
+                )
+                
+                # Give it 5 seconds to start
+                time.sleep(5)
+                
+                if test_process.poll() is None:
+                    # Process is running
+                    self.log_process = test_process
+                    log_process = test_process
+                    is_logging = True
+                    self.is_logging_active = True
+                    self.raw_fallback_mode = True
+                    
+                    self.current_log_method = {
+                        'name': 'Fallback logcat (raw)',
+                        'stream_command': fallback_command,
+                        'os_type': 'fallback'
+                    }
+                    self.detection_verdict = "⚠️ Fallback Mode: logcat (no pattern filtering)"
+                    
+                    # Start background thread
+                    self.log_thread = threading.Thread(
+                        target=self._read_logs_with_python_filtering,
+                        daemon=True
+                    )
+                    self.log_thread.start()
+                    
+                    debug_logger.info("✅ Fallback mode activated successfully")
+                    return True, "⚠️ Started in FALLBACK MODE with raw logcat (all logs shown, no pattern filtering)"
+                else:
+                    debug_logger.error("Fallback logcat process died immediately")
+                    return False, "❌ Even fallback logcat failed to start"
+                    
+            except Exception as e:
+                debug_logger.error(f"Fallback mode failed: {str(e)}", exc_info=True)
+                return False, f"❌ All logging methods failed including fallback: {str(e)}"
             
         except Exception as e:
             self.aggressive_cleanup()
