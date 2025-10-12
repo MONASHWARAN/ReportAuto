@@ -888,81 +888,138 @@ class ADBManager:
                     print(f"FILTERED LOG MATCH: '{filter_keyword}' found in: {message.strip()}")
                     break
     
-    def start_logging(self, device_id):
-        """Start logging for specified device using trial and error method with specific log patterns"""
+    def start_logging_robust(self, device_id):
+        """Robust logging with Python-side filtering (no shell pipes)"""
         global log_process, is_logging
         
         try:
             # Validate input
             if not device_id or not device_id.strip():
-                return False, "❌ Device ID is required to start logging"
+                return False, "❌ Device ID is required"
             
-            # Check if already logging
-            if self.is_logging_active and is_logging:
-                return False, f"❌ Logging is already active for device {self.current_device}. Stop current logging first."
+            device_id = device_id.strip()
             
-            # Ensure complete cleanup before starting
-            self.stop_logging()
-            time.sleep(1)  # Give time for cleanup
+            # Step 1: Aggressive cleanup first
+            self.aggressive_cleanup(device_id)
             
-            self.current_device = device_id.strip()
-            self.is_logging_active = True
+            # Step 2: Test connectivity 
+            if not self.test_device_connectivity(device_id):
+                return False, f"❌ Cannot establish reliable connection to device {device_id}. Check USB debugging and ADB setup."
             
-            # Add a status message to log buffer for user feedback
-            self.add_log_entry("[INFO] Starting automatic log detection with specific log patterns...")
+            self.current_device = device_id
+            self.add_log_entry(f"[INFO] Starting robust logging for device: {device_id}")
+            self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, ADB: {self.adb_cmd}")
             
-            # Determine ADB executable and filter command based on platform
-            adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
-            filter_cmd = 'findstr' if self.platform_system == 'windows' else 'grep'
+            # Step 3: Try log methods with Python-side filtering
+            log_methods = [
+                {
+                    'name': 'FOS/Puffin (logcat - Python filtered)',
+                    'command': [self.adb_cmd, '-s', device_id, 'shell', 'logcat', '-c'],  # Clear first
+                    'stream_command': [self.adb_cmd, '-s', device_id, 'shell', 'logcat'],  # Then stream
+                    'os_type': 'fos'
+                },
+                {
+                    'name': 'Vega (journalctl - Python filtered)', 
+                    'command': None,  # No clear command
+                    'stream_command': [self.adb_cmd, '-s', device_id, 'shell', 'journalctl', '-f'],
+                    'os_type': 'vega'
+                }
+            ]
             
-            self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, Using {filter_cmd} for filtering")
-            self.add_log_entry(f"[INFO] Device: {device_id}")
-            
-            # Test device connectivity with enhanced validation
-            connectivity_ok = False
-            for test_attempt in range(3):  # Try 3 times
-                try:
-                    self.add_log_entry(f"[INFO] Testing device connectivity (attempt {test_attempt + 1}/3)")
-                    test_result = subprocess.run([adb_cmd, '-s', device_id, 'shell', 'echo', 'connectivity_test'], 
-                                               capture_output=True, text=True, timeout=8)
-                    if test_result.returncode == 0 and 'connectivity_test' in test_result.stdout:
-                        connectivity_ok = True
-                        self.add_log_entry(f"[SUCCESS] Device connectivity confirmed")
-                        break
-                    else:
-                        if test_attempt < 2:
-                            self.add_log_entry(f"[WARN] Connectivity test failed, retrying...")
-                            time.sleep(2)
-                        else:
-                            self.add_log_entry(f"[ERROR] Device connectivity failed after 3 attempts")
-                except Exception as e:
-                    if test_attempt < 2:
-                        self.add_log_entry(f"[WARN] Connectivity error: {str(e)}, retrying...")
-                        time.sleep(2)
-                    else:
-                        self.add_log_entry(f"[ERROR] Final connectivity test failed: {str(e)}")
-            
-            if not connectivity_ok:
-                self.is_logging_active = False
-                return False, f"❌ Cannot establish reliable connection to device {device_id}. Check device connection, USB debugging, and ADB setup."
-            
-            # Platform-specific log methods with proper Windows handling
-            if self.platform_system == 'windows':
-                # Windows: Use batch files for complex shell commands
-                success, message = self._start_logging_windows(device_id, adb_cmd)
-            else:
-                # Unix/Linux/Mac: Use standard approach
-                success, message = self._start_logging_unix(device_id, adb_cmd)
-            
-            if not success:
-                self.is_logging_active = False
+            for i, method in enumerate(log_methods, 1):
+                self.add_log_entry(f"[INFO] Trying method {i}/2: {method['name']}")
                 
-            return success, message
+                try:
+                    # Clear buffer for FOS
+                    if method['command']:
+                        self.add_log_entry("[INFO] Clearing logcat buffer...")
+                        subprocess.run(method['command'], capture_output=True, timeout=5)
+                        time.sleep(1)
+                    
+                    # Start streaming process (no shell pipes!)
+                    self.add_log_entry(f"[INFO] Starting raw log stream: {' '.join(method['stream_command'])}")
+                    
+                    test_process = subprocess.Popen(
+                        method['stream_command'],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        bufsize=0,  # Unbuffered for real-time
+                        universal_newlines=True
+                    )
+                    
+                    # Test for 30 seconds (extended detection time)
+                    self.add_log_entry("[INFO] Testing log stream for 30 seconds...")
+                    lines_received = 0
+                    start_time = time.time()
+                    
+                    while time.time() - start_time < 30:
+                        if test_process.poll() is not None:
+                            # Process died
+                            try:
+                                _, stderr = test_process.communicate(timeout=2)
+                                self.add_log_entry(f"[ERROR] {method['name']} process died: {stderr.strip()}")
+                                break
+                            except:
+                                self.add_log_entry(f"[ERROR] {method['name']} process died unexpectedly")
+                                break
+                        
+                        try:
+                            # Non-blocking read attempt
+                            line = test_process.stdout.readline()
+                            if line:
+                                lines_received += 1
+                                if lines_received <= 3:  # Show first few lines
+                                    self.add_log_entry(f"[SAMPLE] {line.strip()}")
+                                
+                                if lines_received >= 5:  # Success criteria: 5+ lines
+                                    self.add_log_entry(f"[SUCCESS] {method['name']} working! Got {lines_received} lines")
+                                    
+                                    # This method works, start actual logging
+                                    self.log_process = test_process
+                                    log_process = test_process
+                                    is_logging = True
+                                    self.is_logging_active = True
+                                    
+                                    self.current_log_method = method
+                                    
+                                    # Start background thread for continuous reading with Python filtering
+                                    self.log_thread = threading.Thread(
+                                        target=self._read_logs_with_python_filtering, 
+                                        daemon=True
+                                    )
+                                    self.log_thread.start()
+                                    
+                                    return True, f"✅ Started robust logging for {device_id} using {method['name']} (Detected: {method['os_type'].upper()})"
+                        
+                        except Exception as e:
+                            # Non-critical read error, continue testing
+                            pass
+                        
+                        time.sleep(0.1)  # Brief pause between read attempts
+                    
+                    # Method failed - didn't get enough output
+                    self.add_log_entry(f"[WARN] {method['name']} insufficient output ({lines_received} lines in 30s)")
+                    
+                    try:
+                        test_process.terminate()
+                        test_process.wait(timeout=2)
+                    except:
+                        try:
+                            test_process.kill()
+                        except:
+                            pass
+                    
+                except Exception as e:
+                    self.add_log_entry(f"[ERROR] {method['name']} exception: {str(e)}")
+                    continue
+            
+            # All methods failed
+            return False, "❌ All logging methods failed. Ensure device is generating logs and applications are active."
             
         except Exception as e:
-            self.is_logging_active = False
-            self.add_log_entry(f"[FATAL ERROR] Logging startup failed: {str(e)}")
-            return False, f"❌ Failed to start logging: {str(e)}"
+            self.aggressive_cleanup()
+            return False, f"❌ Logging startup error: {str(e)}"
     
     def _start_logging_windows(self, device_id, adb_cmd):
         """Windows-specific logging with enhanced FOS retry support"""
