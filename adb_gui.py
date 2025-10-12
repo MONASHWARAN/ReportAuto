@@ -1108,49 +1108,8 @@ class ADBManager:
     # Removed: _start_logging_unix (old shell-pipe approach)
     # Removed: duplicate stop_logging method (old approach)
     
-    def _read_logs_windows_direct(self, process):
-        """Windows-specific log reading directly from process"""
-        global is_logging
-        
-        self.add_log_entry("[INFO] Windows: Starting direct process log reading")
-        
-        while is_logging and self.is_logging_active and process and process.poll() is None:
-            try:
-                line = process.stdout.readline()
-                
-                if line and line.strip():
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    log_entry = f"[{timestamp}] {line.rstrip()}\n"
-                    
-                    # Add to main log buffer
-                    self.log_buffer.append(log_entry)
-                    if len(self.log_buffer) > 1000:
-                        self.log_buffer.pop(0)
-                    
-                    # Apply additional user filters on top of base filtering
-                    if self.current_filters:
-                        for filter_keyword in self.current_filters:
-                            if filter_keyword and filter_keyword.lower() in line.lower():
-                                self.filtered_log_buffer.append(log_entry)
-                                if len(self.filtered_log_buffer) > 1000:
-                                    self.filtered_log_buffer.pop(0)
-                                print(f"WINDOWS FILTER MATCH: '{filter_keyword}' in: {line[:50]}...")
-                                break
-                    else:
-                        # If no user filters, show all base-filtered logs
-                        self.filtered_log_buffer.append(log_entry)
-                        if len(self.filtered_log_buffer) > 1000:
-                            self.filtered_log_buffer.pop(0)
-                
-                time.sleep(0.1)  # Small delay to prevent excessive CPU usage
-                    
-            except Exception as e:
-                print(f"Windows direct log reading error: {e}")
-                self.add_log_entry(f"[ERROR] Windows log reading error: {str(e)}")
-                break
-        
-        print("Windows direct log reading thread terminated")
-        self.add_log_entry("[INFO] Windows: Log reading thread terminated")
+    # OLD METHOD REMOVED: _read_logs_windows_direct
+    # Now using unified _read_logs_with_python_filtering for all platforms
 
     def clear_logs(self):
         """Clear log buffers with validation"""
