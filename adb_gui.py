@@ -1617,7 +1617,7 @@ def pull_file():
 
 @app.route('/api/get-logs')
 def get_logs():
-    """API endpoint to get current logs with status info"""
+    """API endpoint to get current logs with status info and detection verdict"""
     try:
         all_logs, filtered_logs = adb_manager.get_logs()
         
@@ -1628,15 +1628,20 @@ def get_logs():
             'is_logging': adb_manager.is_logging_active,
             'current_device': adb_manager.current_device,
             'log_count': len(adb_manager.log_buffer),
-            'filtered_count': len(adb_manager.filtered_log_buffer)
+            'filtered_count': len(adb_manager.filtered_log_buffer),
+            'detection_verdict': adb_manager.detection_verdict,
+            'fallback_mode': adb_manager.raw_fallback_mode
         })
     except Exception as e:
+        debug_logger.error(f"Error in get_logs API: {str(e)}", exc_info=True)
         return jsonify({
             'error': f'Error retrieving logs: {str(e)}',
             'all_logs': '',
             'filtered_logs': '',
             'active_filters': [],
-            'is_logging': False
+            'is_logging': False,
+            'detection_verdict': '',
+            'fallback_mode': False
         })
 
 def find_free_port():
