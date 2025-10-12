@@ -943,30 +943,39 @@ class ADBManager:
         time.sleep(2)
 
     def test_device_connectivity(self, device_id, max_attempts=3):
-        """Robust device connectivity testing"""
+        """Robust device connectivity testing with retry logic"""
+        debug_logger.info(f"Testing connectivity to device: {device_id}")
+        
         for attempt in range(max_attempts):
             try:
                 self.add_log_entry(f"[INFO] Testing connectivity to {device_id} (attempt {attempt + 1}/{max_attempts})")
                 
-                result = subprocess.run(
-                    [self.adb_cmd, '-s', device_id, 'shell', 'getprop', 'ro.build.type'], 
-                    capture_output=True, text=True, timeout=10
+                result = self._run_adb_with_retry(
+                    [self.adb_cmd, '-s', device_id, 'shell', 'getprop', 'ro.build.type'],
+                    max_attempts=2, timeout=10
                 )
                 
-                if result.returncode == 0 and result.stdout.strip():
-                    self.add_log_entry(f"[SUCCESS] Device connectivity confirmed: {result.stdout.strip()}")
+                if result and result.returncode == 0 and result.stdout.strip():
+                    build_type = result.stdout.strip()
+                    self.add_log_entry(f"[SUCCESS] Device connectivity confirmed: {build_type}")
+                    debug_logger.info(f"Device {device_id} connectivity OK (build type: {build_type})")
                     return True
                 else:
                     if attempt < max_attempts - 1:
                         self.add_log_entry(f"[WARN] Connectivity attempt {attempt + 1} failed, retrying...")
+                        debug_logger.warning(f"Connectivity attempt {attempt + 1} failed")
                         time.sleep(3)
+                    else:
+                        debug_logger.error(f"All connectivity attempts failed for {device_id}")
                     
             except Exception as e:
                 if attempt < max_attempts - 1:
                     self.add_log_entry(f"[WARN] Connectivity error: {str(e)}, retrying...")
+                    debug_logger.error(f"Connectivity error (attempt {attempt + 1}): {str(e)}", exc_info=True)
                     time.sleep(3)
                 else:
                     self.add_log_entry(f"[ERROR] Final connectivity test failed: {str(e)}")
+                    debug_logger.error(f"Final connectivity test failed: {str(e)}", exc_info=True)
         
         return False
     
