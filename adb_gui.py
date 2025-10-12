@@ -1038,6 +1038,7 @@ class ADBManager:
         # Step 9: Clear buffers for fresh start
         self.log_buffer.clear()
         self.filtered_log_buffer.clear()
+        self.cosine_log_buffer.clear()
         debug_logger.info("Buffers cleared")
         
         # Step 10: Clean up log file
