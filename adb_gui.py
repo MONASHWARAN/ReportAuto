@@ -1226,18 +1226,40 @@ class ADBManager:
                     line = self.log_process.stdout.readline()
                     
                     if line:
+                        consecutive_errors = 0  # Reset error counter on successful read
                         line = line.strip()
                         if line:  # Non-empty line
                             timestamp = datetime.now().strftime("%H:%M:%S")
                             log_entry = f"[{timestamp}] {line}\n"
                             
-                            # Check if line matches base patterns (Python-side filtering)
-                            matches_base_pattern = any(
-                                re.search(pattern, line, re.IGNORECASE) 
-                                for pattern in self.base_patterns
-                            )
+                            # In fallback mode, show all logs without pattern filtering
+                            if self.raw_fallback_mode:
+                                # Add to main log buffer (all logs in fallback mode)
+                                self.log_buffer.append(log_entry)
+                                if len(self.log_buffer) > 2000:
+                                    self.log_buffer.pop(0)
+                                
+                                # Apply user filters if any
+                                if self.current_filters:
+                                    for user_filter in self.current_filters:
+                                        if user_filter and user_filter.lower() in line.lower():
+                                            self.filtered_log_buffer.append(log_entry)
+                                            if len(self.filtered_log_buffer) > 2000:
+                                                self.filtered_log_buffer.pop(0)
+                                            break
+                                else:
+                                    # No user filters, show all in fallback
+                                    self.filtered_log_buffer.append(log_entry)
+                                    if len(self.filtered_log_buffer) > 2000:
+                                        self.filtered_log_buffer.pop(0)
+                            else:
+                                # Normal mode: Check if line matches base patterns
+                                matches_base_pattern = any(
+                                    re.search(pattern, line, re.IGNORECASE) 
+                                    for pattern in self.base_patterns
+                                )
                             
-                            if matches_base_pattern:
+                                if matches_base_pattern:
                                 # Add to main log buffer (all base pattern matches)
                                 self.log_buffer.append(log_entry)
                                 if len(self.log_buffer) > 2000:  # Increased buffer size
