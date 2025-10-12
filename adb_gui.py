@@ -826,32 +826,43 @@ class ADBManager:
         # Step 3: Kill Python log process
         if self.log_process:
             try:
-                self.add_log_entry(f"[INFO] Terminating Python log process (PID: {self.log_process.pid})")
+                pid = self.log_process.pid
+                self.add_log_entry(f"[INFO] Terminating Python log process (PID: {pid})")
+                debug_logger.info(f"Terminating log process PID: {pid}")
                 
                 # Kill process tree (important for Windows)
                 if self.platform_system == 'windows':
                     try:
-                        parent = psutil.Process(self.log_process.pid)
+                        parent = psutil.Process(pid)
                         children = parent.children(recursive=True)
+                        debug_logger.debug(f"Found {len(children)} child processes")
+                        
                         for child in children:
+                            debug_logger.debug(f"Terminating child PID: {child.pid}")
                             child.terminate()
                         parent.terminate()
                         
                         # Wait and force kill if needed
-                        psutil.wait_procs([parent] + children, timeout=3)
+                        gone, alive = psutil.wait_procs([parent] + children, timeout=3)
+                        for p in alive:
+                            debug_logger.warning(f"Force killing PID: {p.pid}")
+                            p.kill()
                     except psutil.NoSuchProcess:
-                        pass
+                        debug_logger.debug("Process already terminated")
                 else:
                     # Unix: Standard termination
                     self.log_process.terminate()
                     try:
                         self.log_process.wait(timeout=3)
+                        debug_logger.info("Process terminated gracefully")
                     except subprocess.TimeoutExpired:
+                        debug_logger.warning("Process didn't terminate, force killing")
                         self.log_process.kill()
                         self.log_process.wait(timeout=2)
                         
             except Exception as e:
                 self.add_log_entry(f"[WARN] Python process cleanup error: {str(e)}")
+                debug_logger.error(f"Process cleanup error: {str(e)}", exc_info=True)
             
             self.log_process = None
             log_process = None
