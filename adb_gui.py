@@ -730,6 +730,30 @@ HTML_TEMPLATE = """
                         allLogOutput.textContent = data.all_logs;
                     }
                 }
+                
+                // Update CosineSimilarity logs
+                if (data.cosine_logs !== undefined) {
+                    const cosineOutput = document.getElementById('cosine-log-output');
+                    // Remove loading indicator if it exists
+                    if (cosineOutput.innerHTML.includes('loading-indicator')) {
+                        cosineOutput.textContent = '';
+                    }
+                    
+                    if (data.cosine_logs === "" || data.cosine_logs.includes('<div class="text-muted')) {
+                        // HTML message for no matches or empty
+                        cosineOutput.innerHTML = data.cosine_logs || `
+                            <div class="text-muted text-center p-4">
+                                <i class="fas fa-code-branch fa-2x mb-2"></i><br>
+                                No CosineSimilarityCache logs available.<br>
+                                <small>Waiting for matching patterns...</small>
+                            </div>
+                        `;
+                    } else {
+                        // Regular log text
+                        cosineOutput.textContent = data.cosine_logs;
+                    }
+                }
+                
                 if (data.filtered_logs !== undefined) {
                     const filteredOutput = document.getElementById('filtered-log-output');
                     // Remove loading indicator if it exists
