@@ -501,6 +501,9 @@ HTML_TEMPLATE = """
                 return;
             }
 
+            // Show loading UI
+            showLoadingInLogs();
+
             try {
                 const response = await fetch('/api/start-logging', {
                     method: 'POST',
@@ -512,10 +515,15 @@ HTML_TEMPLATE = """
                 if (data.success) {
                     isLogging = true;
                     showAlert('Logging started for device: ' + deviceId, 'success');
+                    // Keep loading message until logs start appearing
                 } else {
+                    isLogging = false;
+                    hideLoadingInLogs();
                     showAlert('Failed to start logging: ' + data.message, 'danger');
                 }
             } catch (error) {
+                isLogging = false;
+                hideLoadingInLogs();
                 showAlert('Error starting logging: ' + error.message, 'danger');
             }
         }
