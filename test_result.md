@@ -224,21 +224,159 @@ test_plan:
   test_all: false
   test_priority: "high_first"
 
+backend:
+  - task: "Debug logging to file"
+    implemented: true
+    working: "NA"
+    file: "/app/adb_gui.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Implemented comprehensive debug logging:
+          - RotatingFileHandler writing to logfetcher_debug.log
+          - Max 10MB per file, 3 backup files
+          - Logs all operations, errors, and state changes
+          - Console output for INFO level
+          - File logs at DEBUG level with full stack traces
+          
+  - task: "Retry logic with exponential backoff"
+    implemented: true
+    working: "NA"
+    file: "/app/adb_gui.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Added _run_adb_with_retry() method:
+          - 3 attempts by default
+          - Exponential backoff: 1s, 2s, 4s
+          - Applied to all ADB commands (devices, connectivity, cleanup)
+          - Detailed logging of retry attempts
+          
+  - task: "Fallback to raw logs mode"
+    implemented: true
+    working: "NA"
+    file: "/app/adb_gui.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Implemented fallback mode in start_logging_robust():
+          - Activates when both FOS and Vega detection fail
+          - Uses raw logcat without pattern filtering
+          - Shows ALL logs (no base pattern filtering)
+          - Sets raw_fallback_mode flag
+          - Detection verdict: "⚠️ Fallback Mode"
+          - User sees clear message about fallback status
+          
+  - task: "Stop event mechanism for clean thread termination"
+    implemented: true
+    working: "NA"
+    file: "/app/adb_gui.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Enhanced thread management:
+          - Added self.stop_event (threading.Event)
+          - Reader thread checks stop_event.is_set() in loop
+          - Cleanup sets stop_event, then joins thread
+          - Stop event cleared after cleanup for next run
+          - Proper daemon thread usage
+          
+  - task: "Device disconnect detection during streaming"
+    implemented: true
+    working: "NA"
+    file: "/app/adb_gui.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Enhanced _read_logs_with_python_filtering():
+          - Checks process.poll() for unexpected termination
+          - On termination, queries device list to confirm disconnect
+          - Logs device disconnect events
+          - Tracks consecutive errors (max 10 before stopping)
+          - Graceful error recovery with exponential pause
+          
+  - task: "Enhanced file pull with retries and path handling"
+    implemented: true
+    working: "NA"
+    file: "/app/adb_gui.py"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Improved pull_chr_file():
+          - 3 retry attempts per path
+          - Path quoting for Windows spaces
+          - Uses _run_adb_with_retry() for reliability
+          - Better error logging with debug_logger
+          - File size validation after pull
+          
+  - task: "Test scripts and documentation"
+    implemented: true
+    working: true
+    file: "/app/test_adb_gui.py, /app/ACCEPTANCE_TESTS.md"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: |
+          Created comprehensive testing infrastructure:
+          - test_adb_gui.py: Automated test suite (7 tests)
+          - ACCEPTANCE_TESTS.md: 15 manual acceptance tests
+          - requirements_adb_gui.txt: Dependency list
+          - Tests cover: API endpoints, error handling, stress testing
+          
 agent_communication:
   - agent: "main"
     message: |
-      Completed comprehensive rewrite of logging system. Key changes:
-      1. Unified Python-side filtering for both Windows and Mac (no more shell pipes)
-      2. Aggressive cleanup with psutil for robust restart capability
-      3. Extended 30-second detection period for reliable FOS/Vega identification
-      4. Device connectivity validation before starting logs
-      5. Removed all old/duplicate methods for cleaner codebase
+      ✅ PHASE 2 COMPLETE - Enhanced Features Implemented
       
-      Ready for testing on both Windows and Mac with FOS and Vega devices.
-      Test scenarios needed:
-      - Windows + FOS device (logcat)
-      - Windows + Vega device (journalctl)
-      - Mac + FOS device (logcat)
-      - Mac + Vega device (journalctl)
-      - Stop/Start logging multiple times to verify cleanup
-      - Apply user filters and verify case-insensitive matching
+      NEW FEATURES ADDED:
+      1. ✅ Debug logging to logfetcher_debug.log (rotating, 10MB, 3 backups)
+      2. ✅ Retry logic with exponential backoff (1s, 2s, 4s delays)
+      3. ✅ Fallback to raw logs mode when detection fails
+      4. ✅ Stop event mechanism for clean thread termination
+      5. ✅ Device disconnect detection during streaming
+      6. ✅ Enhanced file pull with 3 retries per path and better Windows support
+      7. ✅ Consecutive error tracking (max 10 before stopping)
+      8. ✅ Detection verdict exposed in API (/api/get-logs)
+      9. ✅ Buffer size capped at 2000 lines (explicit management)
+      10. ✅ Test suite and acceptance test documentation
+      
+      FILES CREATED/UPDATED:
+      - adb_gui.py: Enhanced with all new features (~1680 lines)
+      - logfetcher_debug.log: Auto-created debug log file
+      - test_adb_gui.py: Automated test suite
+      - ACCEPTANCE_TESTS.md: 15 manual acceptance tests
+      - requirements_adb_gui.txt: Python dependencies
+      - REWRITE_SUMMARY.md: Technical documentation (Phase 1)
+      
+      READY FOR COMPREHENSIVE TESTING:
+      Automated tests: python3 test_adb_gui.py
+      Manual tests: See ACCEPTANCE_TESTS.md
+      
+      All acceptance criteria from specification now implemented.
