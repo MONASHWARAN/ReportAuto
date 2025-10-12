@@ -304,23 +304,35 @@ HTML_TEMPLATE = """
                             <div class="col-md-12">
                                 <label class="form-label text-warning"><i class="fas fa-filter"></i> Grep Filters (Any match will be shown)</label>
                                 <div class="row">
-                                    <div class="col-md-4">
+                                    <div class="col-md-2">
                                         <div class="input-group mb-2">
-                                            <input type="text" id="grep-filter1" class="form-control" placeholder="Filter 1...">
+                                            <input type="text" id="grep-filter1" class="form-control form-control-sm" placeholder="Filter 1...">
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-2">
                                         <div class="input-group mb-2">
-                                            <input type="text" id="grep-filter2" class="form-control" placeholder="Filter 2...">
+                                            <input type="text" id="grep-filter2" class="form-control form-control-sm" placeholder="Filter 2...">
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-2">
                                         <div class="input-group mb-2">
-                                            <input type="text" id="grep-filter3" class="form-control" placeholder="Filter 3...">
-                                            <button class="btn btn-warning" onclick="applyFilters()">
-                                                <i class="fas fa-filter"></i> Apply
-                                            </button>
+                                            <input type="text" id="grep-filter3" class="form-control form-control-sm" placeholder="Filter 3...">
                                         </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter4" class="form-control form-control-sm" placeholder="Filter 4...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter5" class="form-control form-control-sm" placeholder="Filter 5...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-warning btn-sm w-100" onclick="applyFilters()">
+                                            <i class="fas fa-filter"></i> Apply
+                                        </button>
                                     </div>
                                 </div>
                             </div>
