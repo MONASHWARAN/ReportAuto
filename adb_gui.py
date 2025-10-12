@@ -819,6 +819,7 @@ class ADBManager:
         self.current_device = None
         self.log_buffer = []
         self.filtered_log_buffer = []
+        self.cosine_log_buffer = []  # New buffer for CosineSimilarityCache logs
         self.current_filters = []  # User filters
         self.platform_system = platform.system().lower()
         self.current_log_method = None
@@ -829,8 +830,8 @@ class ADBManager:
         self.raw_fallback_mode = False  # Show raw logs when no patterns match
         self.detection_verdict = ""  # Store detection result for UI
         
-        # Target patterns for Python-side filtering (base patterns)
-        self.base_patterns = [
+        # CosineSimilarity specific patterns
+        self.cosine_patterns = [
             r"CosineSimilarityCache::LookupImpl",
             r"eventType=Speech", 
             r"RESULT_GENERATOR",
