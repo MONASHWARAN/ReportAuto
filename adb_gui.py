@@ -1072,11 +1072,8 @@ class ADBManager:
         self.detection_verdict = ""
         debug_logger.info("State variables reset")
         
-        # Step 9: Clear buffers for fresh start
-        self.log_buffer.clear()
-        self.filtered_log_buffer.clear()
-        self.cosine_log_buffer.clear()
-        debug_logger.info("Buffers cleared")
+        # Step 9: Logs are NOT cleared on stop - user must click Clear button explicitly
+        debug_logger.info("Logs preserved (not cleared on stop)")
         
         # Step 10: Clean up log file
         if hasattr(self, 'log_file_path') and self.log_file_path and os.path.exists(self.log_file_path):
