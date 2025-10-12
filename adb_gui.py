@@ -1197,20 +1197,32 @@ class ADBManager:
             return False, f"❌ Logging startup error: {str(e)}"
     
     def _read_logs_with_python_filtering(self):
-        """Read logs continuously with Python-side filtering"""
+        """Read logs continuously with Python-side filtering and device disconnect detection"""
         global is_logging
         
         self.add_log_entry("[INFO] Starting Python-side log filtering thread")
+        debug_logger.info("Log reader thread started")
+        
+        consecutive_errors = 0
+        max_consecutive_errors = 10
         
         try:
-            while is_logging and self.is_logging_active and self.log_process:
+            while is_logging and self.is_logging_active and self.log_process and not self.stop_event.is_set():
                 try:
-                    # Check if process is still alive
+                    # Check if process is still alive (device disconnect detection)
                     if self.log_process.poll() is not None:
-                        self.add_log_entry("[WARN] Log process terminated unexpectedly")
+                        returncode = self.log_process.returncode
+                        self.add_log_entry(f"[ERROR] Log process terminated unexpectedly (exit code: {returncode})")
+                        debug_logger.error(f"Log process died with return code: {returncode}")
+                        
+                        # Check if device is still connected
+                        devices = self.get_connected_devices()
+                        if not any(d['id'] == self.current_device for d in devices):
+                            self.add_log_entry(f"[ERROR] Device {self.current_device} disconnected!")
+                            debug_logger.error(f"Device {self.current_device} disconnected")
                         break
                     
-                    # Read line with timeout
+                    # Read line with timeout awareness
                     line = self.log_process.stdout.readline()
                     
                     if line:
