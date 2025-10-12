@@ -529,6 +529,12 @@ HTML_TEMPLATE = """
         }
 
         async function stopLogging() {
+            // Check if logging is active
+            if (!isLogging) {
+                showErrorPopup('Stop Logging Failed', 'No active logging session to stop. Please start logging first.');
+                return;
+            }
+
             try {
                 const response = await fetch('/api/stop-logging', {method: 'POST'});
                 const data = await response.json();
