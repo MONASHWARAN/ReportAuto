@@ -750,6 +750,42 @@ HTML_TEMPLATE = """
                 }
             }, 5000);
         }
+
+        function showLoadingInLogs() {
+            const loadingHTML = `
+                <div class="text-center p-5" id="loading-indicator">
+                    <div class="spinner-border text-warning" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-3 text-warning">
+                        <h5><i class="fas fa-sync fa-spin"></i> Starting Log Capture...</h5>
+                        <p class="text-muted">Detecting device and initializing log stream...</p>
+                        <small class="text-muted">This may take up to 30 seconds</small>
+                    </div>
+                </div>
+            `;
+            document.getElementById('all-log-output').innerHTML = loadingHTML;
+            document.getElementById('filtered-log-output').innerHTML = loadingHTML;
+        }
+
+        function hideLoadingInLogs() {
+            document.getElementById('all-log-output').textContent = 'No logs available. Click \'Start\' to begin log capture.';
+            document.getElementById('filtered-log-output').textContent = 'No filtered logs available.';
+        }
+
+        function showErrorPopup(title, message) {
+            const modal = new bootstrap.Modal(document.getElementById('filePullModal'));
+            const modalTitle = document.getElementById('pullModalTitle');
+            const modalMessage = document.getElementById('pullModalMessage');
+            const modalHeader = document.getElementById('pullModalHeader');
+            
+            modalTitle.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${title}`;
+            modalHeader.style.background = '#dc3545';
+            modalHeader.style.color = 'white';
+            modalMessage.textContent = message;
+            
+            modal.show();
+        }
     </script>
 </body>
 </html>
