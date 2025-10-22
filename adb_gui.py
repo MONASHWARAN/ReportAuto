@@ -1492,9 +1492,11 @@ class ADBManager:
     
     def get_logs(self):
         """Get current logs including cosine similarity logs"""
-        all_logs = ''.join(self.log_buffer[-500:])  # Last 500 lines
-        filtered_logs = ''.join(self.filtered_log_buffer[-500:])
-        cosine_logs = ''.join(self.cosine_log_buffer[-500:])  # CosineSimilarity logs
+        # Return last 2000 lines for UI display (performance balance)
+        # Full logs saved when user clicks Save button
+        all_logs = ''.join(self.log_buffer[-2000:])
+        filtered_logs = ''.join(self.filtered_log_buffer[-2000:])
+        cosine_logs = ''.join(self.cosine_log_buffer[-2000:])
         
         # If no filtered logs but filters are applied, show helpful message
         if self.current_filters and not filtered_logs.strip():
