@@ -1384,10 +1384,9 @@ class ADBManager:
                                     timestamp = datetime.now().strftime("%H:%M:%S")
                                     log_entry = f"[{timestamp}] {line}\n"
                                     
-                                    # Add all lines to main log buffer
+                                    # Add all lines to main log buffer (unlimited size for saving)
                                     self.log_buffer.append(log_entry)
-                                    if len(self.log_buffer) > 2000:
-                                        self.log_buffer.pop(0)
+                                    # No size limit - keep all logs for complete save
                                     
                                     # Check for CosineSimilarity patterns
                                     matches_cosine = any(
