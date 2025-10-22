@@ -1395,8 +1395,7 @@ class ADBManager:
                                     )
                                     if matches_cosine:
                                         self.cosine_log_buffer.append(log_entry)
-                                        if len(self.cosine_log_buffer) > 2000:
-                                            self.cosine_log_buffer.pop(0)
+                                        # No size limit - keep all cosine logs for complete save
                                         debug_logger.debug(f"CosineSimilarity pattern match")
                                     
                                     # Apply user filters for filtered log tab
