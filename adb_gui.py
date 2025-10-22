@@ -1403,15 +1403,13 @@ class ADBManager:
                                         for user_filter in self.current_filters:
                                             if user_filter and user_filter.lower() in line.lower():
                                                 self.filtered_log_buffer.append(log_entry)
-                                                if len(self.filtered_log_buffer) > 2000:
-                                                    self.filtered_log_buffer.pop(0)
+                                                # No size limit - keep all filtered logs for complete save
                                                 debug_logger.debug(f"User filter match: '{user_filter}'")
                                                 break
                                     else:
                                         # No filters applied, show all logs in filtered tab too
                                         self.filtered_log_buffer.append(log_entry)
-                                        if len(self.filtered_log_buffer) > 2000:
-                                            self.filtered_log_buffer.pop(0)
+                                        # No size limit - keep all logs
                     else:
                         # File doesn't exist yet, wait
                         self.add_log_entry("[WARN] Log file not found, waiting...")
