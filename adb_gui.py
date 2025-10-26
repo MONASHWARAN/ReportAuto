@@ -1927,6 +1927,13 @@ def save_logs():
         data = request.get_json() or {}
         custom_filename = data.get('filename', '').strip()
         
+        # Security: Validate filename to prevent path traversal
+        if custom_filename:
+            try:
+                custom_filename = sanitize_filename(custom_filename)
+            except ValueError as e:
+                return jsonify({'success': False, 'message': f'❌ Invalid filename: {str(e)}'})
+        
         success, message = adb_manager.save_logs(custom_filename if custom_filename else None)
         return jsonify({'success': success, 'message': message})
     except Exception as e:
