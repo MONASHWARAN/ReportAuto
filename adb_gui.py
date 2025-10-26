@@ -2073,7 +2073,9 @@ if __name__ == '__main__':
     print("="*70)
     
     try:
-        app.run(debug=False, host='0.0.0.0', port=port, threaded=True)
+        # Security: Bind to localhost only (127.0.0.1) to prevent unauthorized remote access
+        # Change to '0.0.0.0' only if remote access is required and properly secured
+        app.run(debug=False, host='127.0.0.1', port=port, threaded=True)
     except KeyboardInterrupt:
         signal_handler(None, None)
     except OSError as e:
@@ -2081,7 +2083,7 @@ if __name__ == '__main__':
             print(f"❌ Port {port} is already in use. Trying another port...")
             port = find_free_port()
             print(f"🔄 Retrying with port {port}")
-            app.run(debug=False, host='0.0.0.0', port=port, threaded=True)
+            app.run(debug=False, host='127.0.0.1', port=port, threaded=True)
         else:
             print(f"❌ Error starting server: {e}")
             sys.exit(1)
