@@ -119,8 +119,57 @@ HTML_TEMPLATE = """
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ADB GUI Tool</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Security: Local styles instead of external CDN -->
+    <style>
+        /* Minimal Bootstrap-like styles - inlined for security */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }
+        .container-fluid { width: 100%; padding: 0 15px; }
+        .row { display: flex; flex-wrap: wrap; margin: -5px; }
+        .col-md-2, .col-md-3, .col-md-4, .col-md-6, .col-md-12 { padding: 5px; flex: 0 0 auto; }
+        .col-md-2 { width: 16.666%; } .col-md-3 { width: 25%; } .col-md-4 { width: 33.333%; }
+        .col-md-6 { width: 50%; } .col-md-12 { width: 100%; }
+        .btn { display: inline-block; padding: 6px 12px; font-size: 14px; border: 1px solid; border-radius: 4px; cursor: pointer; text-align: center; }
+        .btn-sm { padding: 4px 8px; font-size: 12px; }
+        .w-100 { width: 100%; }
+        .d-flex { display: flex; } .justify-content-between { justify-content: space-between; }
+        .mb-2 { margin-bottom: 8px; } .mb-3 { margin-bottom: 16px; } .mt-2 { margin-top: 8px; } .mt-3 { margin-top: 16px; }
+        .p-3 { padding: 16px; } .p-4 { padding: 24px; } .p-5 { padding: 32px; }
+        .text-center { text-align: center; } .text-start { text-align: left; } .text-muted { color: #6c757d; }
+        .form-control { display: block; width: 100%; padding: 6px 12px; font-size: 14px; border: 1px solid #ced4da; border-radius: 4px; }
+        .form-control-sm { padding: 4px 8px; font-size: 12px; }
+        .form-label { display: block; margin-bottom: 4px; font-weight: 500; }
+        .input-group { display: flex; } .input-group .form-control { flex: 1; }
+        .card { border: 1px solid rgba(0,0,0,.125); border-radius: 4px; margin-bottom: 16px; }
+        .card-body { padding: 16px; }
+        .nav-tabs { display: flex; border-bottom: 1px solid #dee2e6; list-style: none; padding: 0; }
+        .nav-item { margin-bottom: -1px; }
+        .nav-link { display: block; padding: 8px 16px; border: 1px solid transparent; cursor: pointer; text-decoration: none; }
+        .nav-link.active { border-color: #dee2e6 #dee2e6 #fff; }
+        .tab-content { padding: 16px; border: 1px solid #dee2e6; border-top: none; }
+        .tab-pane { display: none; } .tab-pane.show.active { display: block; }
+        .modal { display: none; position: fixed; z-index: 1050; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+        .modal.show { display: flex; align-items: center; justify-content: center; }
+        .modal-dialog { max-width: 500px; margin: 20px; }
+        .modal-content { background: white; border-radius: 4px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .modal-header { padding: 16px; border-bottom: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 16px; }
+        .modal-footer { padding: 16px; border-top: 1px solid #dee2e6; display: flex; justify-content: flex-end; }
+        .btn-close { background: transparent; border: 0; font-size: 20px; cursor: pointer; }
+        .alert { padding: 12px 20px; margin-bottom: 16px; border: 1px solid transparent; border-radius: 4px; }
+        .alert-success { color: #0f5132; background: #d1e7dd; border-color: #badbcc; }
+        .alert-danger { color: #842029; background: #f8d7da; border-color: #f5c2c7; }
+        .alert-warning { color: #664d03; background: #fff3cd; border-color: #ffecb5; }
+        .spinner-border { display: inline-block; width: 2rem; height: 2rem; border: 0.25em solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spinner 0.75s linear infinite; }
+        @keyframes spinner { to { transform: rotate(360deg); } }
+        /* Font Awesome icon replacements using Unicode */
+        .fa-list::before { content: "≡ "; } .fa-code-branch::before { content: "⎇ "; }
+        .fa-filter::before { content: "⊙ "; } .fa-play::before { content: "▶ "; }
+        .fa-stop::before { content: "■ "; } .fa-broom::before { content: "🧹 "; }
+        .fa-save::before { content: "💾 "; } .fa-sync-alt::before { content: "↻ "; }
+        .fa-download::before { content: "⬇ "; } .fa-search::before { content: "🔍 "; }
+        .fa-exclamation-circle::before { content: "⚠ "; } .fa-exclamation-triangle::before { content: "⚠ "; }
+        .fa-sync.fa-spin { animation: spinner 2s linear infinite; }
     <style>
         :root {
             --gold: #FFD700;
