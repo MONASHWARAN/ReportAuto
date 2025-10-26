@@ -35,6 +35,57 @@ if platform.system().lower() == 'windows':
 
 app = Flask(__name__)
 
+# Security: Input validation functions
+def sanitize_device_id(device_id):
+    """Validate and sanitize device ID to prevent command injection"""
+    if not device_id:
+        raise ValueError("Device ID cannot be empty")
+    
+    # Device IDs should be alphanumeric, dots, colons, hyphens only
+    if not re.match(r'^[a-zA-Z0-9.:_-]+$', device_id):
+        raise ValueError("Invalid device ID format")
+    
+    # Limit length
+    if len(device_id) > 100:
+        raise ValueError("Device ID too long")
+    
+    return device_id
+
+def sanitize_filename(filename):
+    """Validate and sanitize filename to prevent path traversal"""
+    if not filename:
+        raise ValueError("Filename cannot be empty")
+    
+    # Remove path separators and parent directory references
+    filename = os.path.basename(filename)
+    
+    # Remove dangerous characters
+    filename = re.sub(r'[^\w\s.-]', '', filename)
+    
+    # Prevent hidden files and special names
+    if filename.startswith('.') or filename in ['', '.', '..']:
+        raise ValueError("Invalid filename")
+    
+    # Limit length
+    if len(filename) > 255:
+        raise ValueError("Filename too long")
+    
+    return filename
+
+def sanitize_path(path):
+    """Validate file path to prevent path traversal"""
+    if not path:
+        raise ValueError("Path cannot be empty")
+    
+    # Resolve to absolute path and check it's within allowed directory
+    abs_path = os.path.abspath(path)
+    
+    # Check for path traversal attempts
+    if '..' in path or path.startswith('/'):
+        raise ValueError("Path traversal attempt detected")
+    
+    return abs_path
+
 # Setup debug logging to file
 log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s')
 log_handler = RotatingFileHandler('logfetcher_debug.log', maxBytes=10*1024*1024, backupCount=3)
