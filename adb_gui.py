@@ -562,7 +562,69 @@ HTML_TEMPLATE = """
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Security: Local JavaScript instead of external CDN -->
+    <script>
+        // Minimal Bootstrap-like JavaScript for modals and tabs
+        class Modal {
+            constructor(element) {
+                this.element = typeof element === 'string' ? document.querySelector(element) : element;
+            }
+            show() {
+                if (this.element) {
+                    this.element.classList.add('show');
+                    this.element.style.display = 'flex';
+                }
+            }
+            hide() {
+                if (this.element) {
+                    this.element.classList.remove('show');
+                    this.element.style.display = 'none';
+                }
+            }
+        }
+        
+        // Tab functionality
+        document.addEventListener('click', function(e) {
+            if (e.target.matches('[data-bs-toggle="tab"]')) {
+                e.preventDefault();
+                const targetId = e.target.getAttribute('href');
+                
+                // Hide all tab panes
+                document.querySelectorAll('.tab-pane').forEach(pane => {
+                    pane.classList.remove('show', 'active');
+                });
+                
+                // Remove active from all tabs
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    link.classList.remove('active');
+                });
+                
+                // Show target pane
+                const targetPane = document.querySelector(targetId);
+                if (targetPane) {
+                    targetPane.classList.add('show', 'active');
+                    e.target.classList.add('active');
+                }
+            }
+            
+            // Modal close button
+            if (e.target.matches('.btn-close') || e.target.closest('.btn-close')) {
+                const modal = e.target.closest('.modal');
+                if (modal) {
+                    modal.classList.remove('show');
+                    modal.style.display = 'none';
+                }
+            }
+        });
+        
+        // Alert dismiss
+        document.addEventListener('click', function(e) {
+            if (e.target.matches('[data-bs-dismiss="alert"]') || e.target.closest('[data-bs-dismiss="alert"]')) {
+                const alert = e.target.closest('.alert');
+                if (alert) alert.remove();
+            }
+        });
+    </script>
     <script>
         let logInterval = null;
         let isLogging = false;
