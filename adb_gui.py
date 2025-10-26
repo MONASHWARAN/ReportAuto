@@ -773,7 +773,7 @@ HTML_TEMPLATE = """
                 const data = await response.json();
                 
                 // Show modal popup with result
-                const modal = new bootstrap.Modal(document.getElementById('filePullModal'));
+                const modal = new Modal(document.getElementById('filePullModal'));
                 const modalTitle = document.getElementById('pullModalTitle');
                 const modalMessage = document.getElementById('pullModalMessage');
                 const modalHeader = document.getElementById('pullModalHeader');
@@ -792,7 +792,7 @@ HTML_TEMPLATE = """
                 
                 modal.show();
             } catch (error) {
-                const modal = new bootstrap.Modal(document.getElementById('filePullModal'));
+                const modal = new Modal(document.getElementById('filePullModal'));
                 const modalTitle = document.getElementById('pullModalTitle');
                 const modalMessage = document.getElementById('pullModalMessage');
                 const modalHeader = document.getElementById('pullModalHeader');
