@@ -819,7 +819,7 @@ HTML_TEMPLATE = """
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
             document.getElementById('filename-input').value = `adb_logs_${timestamp}`;
             
-            const modal = new bootstrap.Modal(document.getElementById('saveModal'));
+            const modal = new Modal(document.getElementById('saveModal'));
             modal.show();
         }
 
