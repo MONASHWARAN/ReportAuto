@@ -1891,6 +1891,12 @@ def start_logging():
         if not device_id:
             return jsonify({'success': False, 'message': '❌ Device ID is required to start logging'})
         
+        # Security: Validate device ID to prevent command injection
+        try:
+            device_id = sanitize_device_id(device_id)
+        except ValueError as e:
+            return jsonify({'success': False, 'message': f'❌ Invalid device ID: {str(e)}'})
+        
         success, message = adb_manager.start_logging(device_id)
         return jsonify({'success': success, 'message': message})
     except Exception as e:
