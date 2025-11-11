@@ -967,11 +967,18 @@ HTML_TEMPLATE = """
                 if (data.all_logs) {
                     // Remove loading indicator if it exists
                     const allLogOutput = document.getElementById('all-log-output');
+                    const wasAtBottom = allLogOutput.scrollHeight - allLogOutput.scrollTop === allLogOutput.clientHeight;
+                    
                     if (allLogOutput.innerHTML.includes('loading-indicator')) {
                         // First logs arrived, hide loading
                         allLogOutput.textContent = data.all_logs;
                     } else {
                         allLogOutput.textContent = data.all_logs;
+                    }
+                    
+                    // Auto-scroll to bottom if user was already at bottom
+                    if (wasAtBottom || allLogOutput.innerHTML.includes('loading-indicator')) {
+                        allLogOutput.scrollTop = allLogOutput.scrollHeight;
                     }
                 }
                 
