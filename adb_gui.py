@@ -985,6 +985,8 @@ HTML_TEMPLATE = """
                 // Update CosineSimilarity logs
                 if (data.cosine_logs !== undefined) {
                     const cosineOutput = document.getElementById('cosine-log-output');
+                    const wasAtBottom = cosineOutput.scrollHeight - cosineOutput.scrollTop === cosineOutput.clientHeight;
+                    
                     // Remove loading indicator if it exists
                     if (cosineOutput.innerHTML.includes('loading-indicator')) {
                         cosineOutput.textContent = '';
@@ -1002,6 +1004,11 @@ HTML_TEMPLATE = """
                     } else {
                         // Regular log text
                         cosineOutput.textContent = data.cosine_logs;
+                        
+                        // Auto-scroll to bottom
+                        if (wasAtBottom) {
+                            cosineOutput.scrollTop = cosineOutput.scrollHeight;
+                        }
                     }
                 }
                 
