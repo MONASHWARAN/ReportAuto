@@ -182,9 +182,13 @@ HTML_TEMPLATE = """
         
         body {
             background: linear-gradient(135deg, var(--black) 0%, var(--dark-gray) 100%);
+            background-attachment: fixed; /* Prevent background flickering */
             color: var(--text-light);
             font-family: 'Arial', sans-serif;
             min-height: 100vh;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden; /* Prevent horizontal scroll */
         }
         
         .navbar {
