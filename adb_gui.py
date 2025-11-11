@@ -265,6 +265,21 @@ HTML_TEMPLATE = """
             box-shadow: 0 0 0 0.2rem rgba(255, 215, 0, 0.25);
         }
         
+        /* Fixed status messages area */
+        #status-messages {
+            position: fixed;
+            top: 70px;
+            right: 20px;
+            width: 350px;
+            max-width: 90%;
+            z-index: 9999;
+            pointer-events: none;
+        }
+        
+        #status-messages .alert {
+            pointer-events: all;
+        }
+        
         .nav-tabs .nav-link {
             background: var(--dark-gray);
             border: 1px solid var(--dark-gold);
