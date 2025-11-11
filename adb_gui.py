@@ -981,18 +981,40 @@ HTML_TEMPLATE = """
             const alertsContainer = document.getElementById('status-messages');
             const alert = document.createElement('div');
             alert.className = `alert alert-${type} alert-dismissible fade show`;
+            alert.style.cssText = `
+                padding: 15px 20px;
+                margin-bottom: 10px;
+                border-radius: 8px;
+                font-weight: 500;
+                font-size: 14px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+                animation: slideIn 0.3s ease-out;
+                position: relative;
+                z-index: 1000;
+            `;
             alert.innerHTML = `
-                ${message}
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <strong>${getAlertIcon(type)}</strong> ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);"></button>
             `;
             alertsContainer.appendChild(alert);
             
             // Auto-remove after 5 seconds
             setTimeout(() => {
                 if (alert.parentNode) {
-                    alert.remove();
+                    alert.style.animation = 'slideOut 0.3s ease-in';
+                    setTimeout(() => alert.remove(), 300);
                 }
             }, 5000);
+        }
+        
+        function getAlertIcon(type) {
+            const icons = {
+                'success': '✅',
+                'danger': '❌',
+                'warning': '⚠️',
+                'info': 'ℹ️'
+            };
+            return icons[type] || 'ℹ️';
         }
 
         function showLoadingInLogs() {
