@@ -795,6 +795,17 @@ HTML_TEMPLATE = """
                 }
                 
                 modal.show();
+                
+                // Auto-close after 3 seconds for successful operations
+                if (data.success) {
+                    setTimeout(() => {
+                        const modalElement = document.getElementById('filePullModal');
+                        if (modalElement) {
+                            modalElement.classList.remove('show');
+                            modalElement.style.display = 'none';
+                        }
+                    }, 3000);
+                }
             } catch (error) {
                 const modal = new Modal(document.getElementById('filePullModal'));
                 const modalTitle = document.getElementById('pullModalTitle');
