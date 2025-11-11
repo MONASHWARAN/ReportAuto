@@ -1014,6 +1014,8 @@ HTML_TEMPLATE = """
                 
                 if (data.filtered_logs !== undefined) {
                     const filteredOutput = document.getElementById('filtered-log-output');
+                    const wasAtBottom = filteredOutput.scrollHeight - filteredOutput.scrollTop === filteredOutput.clientHeight;
+                    
                     // Remove loading indicator if it exists
                     if (filteredOutput.innerHTML.includes('loading-indicator')) {
                         filteredOutput.textContent = '';
@@ -1029,8 +1031,13 @@ HTML_TEMPLATE = """
                             </div>
                         `;
                     } else {
-                        // Regular log text - preserve existing content and append new
+                        // Regular log text
                         filteredOutput.textContent = data.filtered_logs;
+                        
+                        // Auto-scroll to bottom
+                        if (wasAtBottom) {
+                            filteredOutput.scrollTop = filteredOutput.scrollHeight;
+                        }
                     }
                 }
             } catch (error) {
