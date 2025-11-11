@@ -303,13 +303,37 @@ HTML_TEMPLATE = """
         }
         
         .log-output {
+            background: var(--black);
+            padding: 15px;
+            border-radius: 5px;
             font-family: 'Courier New', monospace;
             font-size: 12px;
             white-space: pre-wrap;
-            padding: 15px;
-            background: var(--black);
-            color: var(--gold);
-            height: 100%;
+            word-wrap: break-word;
+            height: 400px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border: 1px solid var(--dark-gold);
+            position: relative;
+            scroll-behavior: smooth;
+        }
+        
+        .log-output::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        .log-output::-webkit-scrollbar-track {
+            background: var(--dark-gray);
+            border-radius: 5px;
+        }
+        
+        .log-output::-webkit-scrollbar-thumb {
+            background: var(--gold);
+            border-radius: 5px;
+        }
+        
+        .log-output::-webkit-scrollbar-thumb:hover {
+            background: #ffc107;
         }
         
         .device-status {
