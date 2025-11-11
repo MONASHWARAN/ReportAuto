@@ -162,6 +162,14 @@ HTML_TEMPLATE = """
         .alert-warning { color: #664d03; background: #fff3cd; border-color: #ffecb5; }
         .spinner-border { display: inline-block; width: 2rem; height: 2rem; border: 0.25em solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spinner 0.75s linear infinite; }
         @keyframes spinner { to { transform: rotate(360deg); } }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
         /* Font Awesome icon replacements using Unicode */
         .fa-list::before { content: "≡ "; } .fa-code-branch::before { content: "⎇ "; }
         .fa-filter::before { content: "⊙ "; } .fa-play::before { content: "▶ "; }
