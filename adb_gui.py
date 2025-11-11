@@ -842,12 +842,26 @@ HTML_TEMPLATE = """
                 });
                 const data = await response.json();
                 
-                // Close modal
-                const modal = bootstrap.Modal.getInstance(document.getElementById('saveModal'));
-                modal.hide();
+                // Close modal first
+                const modal = document.getElementById('saveModal');
+                if (modal) {
+                    modal.classList.remove('show');
+                    modal.style.display = 'none';
+                }
                 
-                showAlert(data.message, data.success ? 'success' : 'danger');
+                // Then show alert
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.message, 'danger');
+                }
             } catch (error) {
+                // Close modal even on error
+                const modal = document.getElementById('saveModal');
+                if (modal) {
+                    modal.classList.remove('show');
+                    modal.style.display = 'none';
+                }
                 showAlert('Error saving logs: ' + error.message, 'danger');
             }
         }
