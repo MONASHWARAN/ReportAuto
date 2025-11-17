@@ -178,91 +178,116 @@ HTML_TEMPLATE = """
         .fa-download::before { content: "⬇ "; } .fa-search::before { content: "🔍 "; }
         .fa-exclamation-circle::before { content: "⚠ "; } .fa-exclamation-triangle::before { content: "⚠ "; }
         .fa-sync.fa-spin { animation: spinner 2s linear infinite; }
+    </style>
     <style>
+        /* Black & White Theme with Teal Accent */
         :root {
-            --gold: #FFD700;
-            --dark-gold: #B8860B;
-            --black: #000000;
-            --dark-gray: #1a1a1a;
-            --light-gray: #2d2d2d;
-            --text-light: #f8f9fa;
+            --primary: #000000;        /* Black */
+            --secondary: #17a2b8;      /* Teal - contrast color */
+            --accent: #20c997;         /* Lighter teal */
+            --white: #ffffff;
+            --light-gray: #f8f9fa;
+            --medium-gray: #e9ecef;
+            --border-gray: #dee2e6;
+            --text-dark: #212529;
+            --text-muted: #6c757d;
         }
         
         body {
-            background: linear-gradient(135deg, var(--black) 0%, var(--dark-gray) 100%);
-            background-attachment: fixed; /* Prevent background flickering */
-            color: var(--text-light);
+            background: var(--white);
+            color: var(--text-dark);
             font-family: 'Arial', sans-serif;
             min-height: 100vh;
             margin: 0;
             padding: 0;
-            overflow-x: hidden; /* Prevent horizontal scroll */
+            overflow-x: hidden;
         }
         
         .navbar {
-            background: linear-gradient(90deg, var(--black) 0%, var(--dark-gold) 100%);
-            border-bottom: 2px solid var(--gold);
+            background: var(--primary);
+            border-bottom: 3px solid var(--secondary);
         }
         
         .navbar-brand {
-            color: var(--gold) !important;
+            color: var(--white) !important;
             font-weight: bold;
             font-size: 1.5rem;
         }
         
         .card {
-            background: var(--light-gray);
-            border: 1px solid var(--dark-gold);
+            background: var(--white);
+            border: 2px solid var(--border-gray);
             border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         
         .card-header {
-            background: linear-gradient(90deg, var(--dark-gold) 0%, var(--gold) 100%);
-            color: var(--black);
+            background: var(--primary);
+            color: var(--white);
             font-weight: bold;
-            border-radius: 10px 10px 0 0 !important;
+            border-radius: 8px 8px 0 0 !important;
+            border-bottom: 2px solid var(--secondary);
         }
         
         .btn-primary {
-            background: linear-gradient(45deg, var(--dark-gold) 0%, var(--gold) 100%);
-            border: none;
-            color: var(--black);
+            background: var(--primary);
+            border: 2px solid var(--primary);
+            color: var(--white);
             font-weight: bold;
         }
         
         .btn-primary:hover {
-            background: linear-gradient(45deg, var(--gold) 0%, var(--dark-gold) 100%);
+            background: var(--secondary);
+            border-color: var(--secondary);
+            color: var(--white);
             transform: translateY(-2px);
             transition: all 0.3s ease;
         }
         
         .btn-danger {
-            background: linear-gradient(45deg, #dc3545 0%, #c82333 100%);
-            border: none;
+            background: #dc3545;
+            border: 2px solid #dc3545;
+            color: var(--white);
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+            border-color: #c82333;
         }
         
         .btn-success {
-            background: linear-gradient(45deg, #28a745 0%, #20c997 100%);
-            border: none;
+            background: #28a745;
+            border: 2px solid #28a745;
+            color: var(--white);
+        }
+        
+        .btn-success:hover {
+            background: #20c997;
+            border-color: #20c997;
         }
         
         .btn-warning {
-            background: linear-gradient(45deg, var(--gold) 0%, #ffc107 100%);
-            border: none;
-            color: var(--black);
+            background: var(--secondary);
+            border: 2px solid var(--secondary);
+            color: var(--white);
+        }
+        
+        .btn-warning:hover {
+            background: var(--accent);
+            border-color: var(--accent);
         }
         
         .form-control {
-            background: var(--dark-gray);
-            border: 1px solid var(--dark-gold);
-            color: var(--text-light);
+            background: var(--white);
+            border: 1px solid var(--border-gray);
+            color: var(--text-dark);
         }
         
         .form-control:focus {
-            background: var(--dark-gray);
-            border-color: var(--gold);
-            color: var(--text-light);
-            box-shadow: 0 0 0 0.2rem rgba(255, 215, 0, 0.25);
+            background: var(--white);
+            border-color: var(--secondary);
+            color: var(--text-dark);
+            box-shadow: 0 0 0 0.2rem rgba(23, 162, 184, 0.25);
         }
         
         /* Fixed status messages area */
@@ -281,21 +306,21 @@ HTML_TEMPLATE = """
         }
         
         .nav-tabs .nav-link {
-            background: var(--dark-gray);
-            border: 1px solid var(--dark-gold);
-            color: var(--text-light);
+            background: var(--light-gray);
+            border: 1px solid var(--border-gray);
+            color: var(--text-dark);
         }
         
         .nav-tabs .nav-link.active {
-            background: var(--gold);
-            border-color: var(--gold);
-            color: var(--black);
+            background: var(--primary);
+            border-color: var(--primary);
+            color: var(--white);
             font-weight: bold;
         }
         
         .tab-content {
-            background: var(--dark-gray);
-            border: 1px solid var(--dark-gold);
+            background: var(--white);
+            border: 1px solid var(--border-gray);
             border-top: none;
             min-height: 400px;
             max-height: 400px;
@@ -303,7 +328,7 @@ HTML_TEMPLATE = """
         }
         
         .log-output {
-            background: var(--black);
+            background: var(--light-gray);
             padding: 15px;
             border-radius: 5px;
             font-family: 'Courier New', monospace;
@@ -313,9 +338,10 @@ HTML_TEMPLATE = """
             height: 400px;
             overflow-y: auto;
             overflow-x: hidden;
-            border: 1px solid var(--dark-gold);
+            border: 1px solid var(--border-gray);
             position: relative;
             scroll-behavior: smooth;
+            color: var(--text-dark);
         }
         
         .log-output::-webkit-scrollbar {
@@ -323,32 +349,34 @@ HTML_TEMPLATE = """
         }
         
         .log-output::-webkit-scrollbar-track {
-            background: var(--dark-gray);
+            background: var(--medium-gray);
             border-radius: 5px;
         }
         
         .log-output::-webkit-scrollbar-thumb {
-            background: var(--gold);
+            background: var(--secondary);
             border-radius: 5px;
         }
         
         .log-output::-webkit-scrollbar-thumb:hover {
-            background: #ffc107;
+            background: var(--accent);
         }
         
         .device-status {
             padding: 10px;
             border-radius: 5px;
             margin: 5px 0;
+            background: var(--light-gray);
+            border: 1px solid var(--border-gray);
         }
         
         .device-online {
-            background: linear-gradient(90deg, rgba(40, 167, 69, 0.2) 0%, rgba(32, 201, 151, 0.2) 100%);
+            background: rgba(40, 167, 69, 0.1);
             border-left: 4px solid #28a745;
         }
         
         .device-offline {
-            background: linear-gradient(90deg, rgba(220, 53, 69, 0.2) 0%, rgba(200, 35, 51, 0.2) 100%);
+            background: rgba(220, 53, 69, 0.1);
             border-left: 4px solid #dc3545;
         }
         
@@ -365,8 +393,8 @@ HTML_TEMPLATE = """
         
         .icon-button {
             background: none;
-            border: 1px solid var(--gold);
-            color: var(--gold);
+            border: 2px solid var(--primary);
+            color: var(--primary);
             padding: 8px 12px;
             margin: 2px;
             border-radius: 5px;
@@ -374,8 +402,8 @@ HTML_TEMPLATE = """
         }
         
         .icon-button:hover {
-            background: var(--gold);
-            color: var(--black);
+            background: var(--primary);
+            color: var(--white);
         }
         
         .alert {
@@ -384,15 +412,15 @@ HTML_TEMPLATE = """
         }
         
         .alert-success {
-            background: rgba(40, 167, 69, 0.2);
-            border-color: #28a745;
-            color: #d4edda;
+            background: rgba(40, 167, 69, 0.15);
+            border: 1px solid #28a745;
+            color: #155724;
         }
         
         .alert-danger {
-            background: rgba(220, 53, 69, 0.2);
-            border-color: #dc3545;
-            color: #f8d7da;
+            background: rgba(220, 53, 69, 0.15);
+            border: 1px solid #dc3545;
+            color: #721c24;
         }
     </style>
 </head>
