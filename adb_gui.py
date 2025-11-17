@@ -216,6 +216,13 @@ HTML_TEMPLATE = """
         .navbar {
             background: linear-gradient(90deg, var(--black) 0%, var(--dark-gold) 100%);
             border-bottom: 2px solid var(--gold);
+            padding: 10px 15px;
+        }
+        
+        .navbar .container-fluid {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
         
         .navbar-brand {
