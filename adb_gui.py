@@ -472,7 +472,7 @@ HTML_TEMPLATE = """
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <span><i class="fas fa-terminal"></i> Log Monitoring</span>
                         <div>
-                            <select id="device-select" class="form-select form-select-sm" style="width: auto; display: inline-block; background: var(--dark-gray); border-color: var(--gold); color: var(--text-light);">
+                            <select id="device-select" class="form-select form-select-sm" style="width: auto; display: inline-block; background: #fff; border: 1px solid #dee2e6; color: #212529;">
                                 <option value="">Select Device</option>
                             </select>
                         </div>
