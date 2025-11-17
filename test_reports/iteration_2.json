@@ -17,7 +17,7 @@
     "critical_bugs": [
       {
         "component": "Public URL Access - UNRESOLVED FROM ITERATION 1",
-        "issue": "ADB GUI application still not accessible via public URL (https://devicelog-hub.preview.emergentagent.com)",
+        "issue": "ADB GUI application still not accessible via public URL (https://adblogger.preview.emergentagent.com)",
         "impact": "Users cannot access the application through the configured public URL - shows React frontend instead",
         "fix_priority": "CRITICAL",
         "details": "ADB GUI Flask app running on port 48415 but not integrated with supervisor-managed services. Public URL serves React frontend, not ADB GUI."
@@ -63,7 +63,7 @@
     "/app/adb_logs_20251002_145545.txt"
   ],
   
-  "action_item_for_E1": "CRITICAL UNRESOLVED ISSUE: The ADB GUI application is still not accessible via the public URL. The Flask app runs correctly on localhost:48415 with all enhanced features working, but users cannot access it via https://devicelog-hub.preview.emergentagent.com (which shows React frontend instead). REQUIRED ACTIONS: 1) Add ADB GUI Flask app to supervisor configuration (/etc/supervisor/conf.d/), 2) Configure proper URL routing/proxy to make it accessible via public URL, 3) Ensure the app auto-starts and restarts with supervisor management.",
+  "action_item_for_E1": "CRITICAL UNRESOLVED ISSUE: The ADB GUI application is still not accessible via the public URL. The Flask app runs correctly on localhost:48415 with all enhanced features working, but users cannot access it via https://adblogger.preview.emergentagent.com (which shows React frontend instead). REQUIRED ACTIONS: 1) Add ADB GUI Flask app to supervisor configuration (/etc/supervisor/conf.d/), 2) Configure proper URL routing/proxy to make it accessible via public URL, 3) Ensure the app auto-starts and restarts with supervisor management.",
   
   "should_call_test_agent_after_fix": "true",
   

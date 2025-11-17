@@ -17,7 +17,7 @@
     "critical_bugs": [
       {
         "component": "Public URL Access",
-        "issue": "ADB GUI application not accessible via public URL (https://devicelog-hub.preview.emergentagent.com)",
+        "issue": "ADB GUI application not accessible via public URL (https://adblogger.preview.emergentagent.com)",
         "impact": "Users cannot access the application through the configured public URL",
         "fix_priority": "HIGH",
         "details": "Public URL shows 'Building something incredible' instead of ADB GUI application"
@@ -55,7 +55,7 @@
   
   "test_report_links": ["/app/backend_test.py"],
   
-  "action_item_for_E1": "CRITICAL: Configure public URL routing to serve ADB GUI application. The Flask app is running on port 47217 but not accessible via the configured public URL (https://devicelog-hub.preview.emergentagent.com). Need to either: 1) Configure supervisor to manage the ADB GUI Flask app, or 2) Set up proper URL routing/proxy to make it accessible via public URL.",
+  "action_item_for_E1": "CRITICAL: Configure public URL routing to serve ADB GUI application. The Flask app is running on port 47217 but not accessible via the configured public URL (https://adblogger.preview.emergentagent.com). Need to either: 1) Configure supervisor to manage the ADB GUI Flask app, or 2) Set up proper URL routing/proxy to make it accessible via public URL.",
   
   "should_call_test_agent_after_fix": "true",
   
