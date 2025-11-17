@@ -404,7 +404,7 @@ HTML_TEMPLATE = """
                 <i class="fas fa-mobile-alt"></i> ADB GUI Tool
             </span>
             <div class="d-flex">
-                <button class="btn btn-sm" onclick="refreshDevices()" style="background: #000; color: #fff; border: 1px solid #fff;">
+                <button id="refreshBtn" class="btn btn-sm" onclick="refreshDevices()" style="background: #000; color: #fff; border: 1px solid #fff;">
                     <i class="fas fa-sync-alt"></i> Refresh
                 </button>
             </div>
