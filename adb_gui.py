@@ -688,6 +688,12 @@ HTML_TEMPLATE = """
                     modal.style.display = 'none';
                 }
             }
+            
+            // Close modal when clicking on backdrop
+            if (e.target.matches('.modal') && e.target.classList.contains('show')) {
+                e.target.classList.remove('show');
+                e.target.style.display = 'none';
+            }
         });
         
         // Alert dismiss
