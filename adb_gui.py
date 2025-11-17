@@ -178,6 +178,7 @@ HTML_TEMPLATE = """
         .fa-download::before { content: "⬇ "; } .fa-search::before { content: "🔍 "; }
         .fa-exclamation-circle::before { content: "⚠ "; } .fa-exclamation-triangle::before { content: "⚠ "; }
         .fa-sync.fa-spin { animation: spinner 2s linear infinite; }
+    </style>
     <style>
         :root {
             --gold: #FFD700;
