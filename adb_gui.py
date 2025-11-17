@@ -134,6 +134,13 @@ HTML_TEMPLATE = """
         @media (max-width: 768px) {
             .col-md-2, .col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-md-12 { width: 100%; }
             .navbar-brand { font-size: 1.2rem; }
+            .log-output { height: 300px; font-size: 11px; }
+            .tab-content { min-height: 300px; max-height: 300px; }
+        }
+        
+        @media (max-width: 480px) {
+            .btn-sm { font-size: 11px; padding: 3px 6px; }
+            .navbar-brand { font-size: 1rem; }
         }
         .btn { display: inline-block; padding: 6px 12px; font-size: 14px; border: 1px solid; border-radius: 4px; cursor: pointer; text-align: center; }
         .btn-sm { padding: 4px 8px; font-size: 12px; }
