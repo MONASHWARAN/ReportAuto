@@ -659,8 +659,9 @@ HTML_TEMPLATE = """
                 }
             }
             
-            // Modal close button
-            if (e.target.matches('.btn-close') || e.target.closest('.btn-close')) {
+            // Modal close button - handle both .btn-close and data-bs-dismiss="modal"
+            if (e.target.matches('.btn-close') || e.target.closest('.btn-close') ||
+                e.target.matches('[data-bs-dismiss="modal"]') || e.target.closest('[data-bs-dismiss="modal"]')) {
                 const modal = e.target.closest('.modal');
                 if (modal) {
                     modal.classList.remove('show');
