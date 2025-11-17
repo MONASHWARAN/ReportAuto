@@ -126,9 +126,15 @@ HTML_TEMPLATE = """
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.5; }
         .container-fluid { width: 100%; padding: 0 15px; }
         .row { display: flex; flex-wrap: wrap; margin: -5px; }
-        .col-md-2, .col-md-3, .col-md-4, .col-md-6, .col-md-12 { padding: 5px; flex: 0 0 auto; }
+        .col-md-2, .col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-md-12 { padding: 5px; flex: 0 0 auto; }
         .col-md-2 { width: 16.666%; } .col-md-3 { width: 25%; } .col-md-4 { width: 33.333%; }
-        .col-md-6 { width: 50%; } .col-md-12 { width: 100%; }
+        .col-md-6 { width: 50%; } .col-md-8 { width: 66.666%; } .col-md-12 { width: 100%; }
+        
+        /* Responsive layout for smaller screens */
+        @media (max-width: 768px) {
+            .col-md-2, .col-md-3, .col-md-4, .col-md-6, .col-md-8, .col-md-12 { width: 100%; }
+            .navbar-brand { font-size: 1.2rem; }
+        }
         .btn { display: inline-block; padding: 6px 12px; font-size: 14px; border: 1px solid; border-radius: 4px; cursor: pointer; text-align: center; }
         .btn-sm { padding: 4px 8px; font-size: 12px; }
         .w-100 { width: 100%; }
