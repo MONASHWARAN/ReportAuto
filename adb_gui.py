@@ -9,14 +9,47 @@ import subprocess
 import threading
 import time
 import socket
-import select
+import platform
+import psutil  # For robust process management
 from datetime import datetime
 from flask import Flask, render_template_string, jsonify, request, send_file
 import queue
 import signal
 import sys
+import re
+import logging
+from logging.handlers import RotatingFileHandler
+
+# Windows-specific subprocess constants
+if platform.system().lower() == 'windows':
+    try:
+        # These constants are available in subprocess module on Windows
+        STARTF_USESHOWWINDOW = subprocess.STARTF_USESHOWWINDOW
+        SW_HIDE = subprocess.SW_HIDE  
+        CREATE_NO_WINDOW = subprocess.CREATE_NO_WINDOW
+    except AttributeError:
+        # Fallback values if not available
+        STARTF_USESHOWWINDOW = 0x00000001
+        SW_HIDE = 0
+        CREATE_NO_WINDOW = 0x08000000
 
 app = Flask(__name__)
+
+# Setup debug logging to file
+log_formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(funcName)s] - %(message)s')
+log_handler = RotatingFileHandler('logfetcher_debug.log', maxBytes=10*1024*1024, backupCount=3)
+log_handler.setFormatter(log_formatter)
+log_handler.setLevel(logging.DEBUG)
+
+debug_logger = logging.getLogger('ADBLogFetcher')
+debug_logger.setLevel(logging.DEBUG)
+debug_logger.addHandler(log_handler)
+
+# Also log to console
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(log_formatter)
+console_handler.setLevel(logging.INFO)
+debug_logger.addHandler(console_handler)
 
 # Global variables for log management
 log_queue = queue.Queue()
@@ -219,7 +252,7 @@ HTML_TEMPLATE = """
                 <i class="fas fa-mobile-alt"></i> ADB GUI Tool
             </span>
             <div class="d-flex">
-                <button class="btn btn-outline-warning btn-sm" onclick="refreshDevices()">
+                <button class="btn btn-sm" onclick="refreshDevices()" style="background: #000; color: #fff; border: 1px solid #fff;">
                     <i class="fas fa-sync-alt"></i> Refresh
                 </button>
             </div>
@@ -268,15 +301,44 @@ HTML_TEMPLATE = """
                     <div class="card-body">
                         <!-- Controls -->
                         <div class="row mb-3">
-                            <div class="col-md-6">
-                                <div class="input-group">
-                                    <input type="text" id="grep-filter" class="form-control" placeholder="Enter filter keyword for grep...">
-                                    <button class="btn btn-warning" onclick="applyFilter()">
-                                        <i class="fas fa-filter"></i> Filter
-                                    </button>
+                            <div class="col-md-12">
+                                <label class="form-label text-warning"><i class="fas fa-filter"></i> Grep Filters (Any match will be shown)</label>
+                                <div class="row">
+                                    <div class="col-md-2">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter1" class="form-control form-control-sm" placeholder="Filter 1...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter2" class="form-control form-control-sm" placeholder="Filter 2...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter3" class="form-control form-control-sm" placeholder="Filter 3...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter4" class="form-control form-control-sm" placeholder="Filter 4...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <div class="input-group mb-2">
+                                            <input type="text" id="grep-filter5" class="form-control form-control-sm" placeholder="Filter 5...">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-warning btn-sm w-100" onclick="applyFilters()">
+                                            <i class="fas fa-filter"></i> Apply
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-12">
                                 <div class="btn-group w-100">
                                     <button class="btn btn-success" onclick="startLogging()">
                                         <i class="fas fa-play"></i> Start
@@ -287,7 +349,7 @@ HTML_TEMPLATE = """
                                     <button class="btn btn-warning" onclick="clearLogs()">
                                         <i class="fas fa-eraser"></i> Clear
                                     </button>
-                                    <button class="btn btn-primary" onclick="saveLogs()">
+                                    <button class="btn btn-primary" onclick="showSaveDialog()">
                                         <i class="fas fa-save"></i> Save
                                     </button>
                                 </div>
@@ -299,6 +361,11 @@ HTML_TEMPLATE = """
                             <li class="nav-item">
                                 <a class="nav-link active" data-bs-toggle="tab" href="#all-logs">
                                     <i class="fas fa-list"></i> All Logs
+                                </a>
+                            </li>
+                            <li class="nav-item">
+                                <a class="nav-link" data-bs-toggle="tab" href="#cosine-logs">
+                                    <i class="fas fa-code-branch"></i> CosineSimilarityCache
                                 </a>
                             </li>
                             <li class="nav-item">
@@ -315,9 +382,31 @@ HTML_TEMPLATE = """
                                     No logs available. Click 'Start' to begin log capture.
                                 </div>
                             </div>
+                            <div class="tab-pane fade" id="cosine-logs">
+                                <div class="log-output" id="cosine-log-output">
+                                    <div class="text-muted text-center p-4">
+                                        <i class="fas fa-code-branch fa-2x mb-2"></i><br>
+                                        No CosineSimilarityCache logs available.<br>
+                                        Start logging to see matching patterns.
+                                        <div class="mt-2 text-start">
+                                            <small>Patterns:</small>
+                                            <ul class="text-muted" style="font-size: 0.85rem;">
+                                                <li>CosineSimilarityCache::LookupImpl</li>
+                                                <li>eventType=Speech</li>
+                                                <li>RESULT_GENERATOR</li>
+                                                <li>Calling onCacheUpdate</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                             <div class="tab-pane fade" id="filtered-logs">
                                 <div class="log-output" id="filtered-log-output">
-                                    No filtered logs available. Enter a filter keyword and start logging.
+                                    <div class="text-muted text-center p-4">
+                                        <i class="fas fa-filter fa-2x mb-2"></i><br>
+                                        No filtered logs available.<br>
+                                        Enter filter keywords and start logging to see matches.
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -328,6 +417,49 @@ HTML_TEMPLATE = """
 
         <!-- Status Messages -->
         <div id="status-messages" class="mt-3"></div>
+    </div>
+
+    <!-- Save Dialog Modal -->
+    <div class="modal fade" id="saveModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background: var(--light-gray); border: 1px solid var(--gold);">
+                <div class="modal-header" style="background: var(--gold); color: var(--black);">
+                    <h5 class="modal-title"><i class="fas fa-save"></i> Save Logs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="filename-input" class="form-label text-light">Filename (will be saved as .txt)</label>
+                        <input type="text" class="form-control" id="filename-input" placeholder="Enter filename without extension">
+                        <div class="form-text text-muted">File will be saved in current directory</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveLogsWithFilename()">
+                        <i class="fas fa-save"></i> Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Pull Success Modal -->
+    <div class="modal fade" id="filePullModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content" style="background: var(--light-gray); border: 1px solid var(--gold);">
+                <div class="modal-header" id="pullModalHeader">
+                    <h5 class="modal-title" id="pullModalTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="pullModalMessage"></p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -392,6 +524,9 @@ HTML_TEMPLATE = """
                 return;
             }
 
+            // Show loading UI
+            showLoadingInLogs();
+
             try {
                 const response = await fetch('/api/start-logging', {
                     method: 'POST',
@@ -403,15 +538,26 @@ HTML_TEMPLATE = """
                 if (data.success) {
                     isLogging = true;
                     showAlert('Logging started for device: ' + deviceId, 'success');
+                    // Keep loading message until logs start appearing
                 } else {
+                    isLogging = false;
+                    hideLoadingInLogs();
                     showAlert('Failed to start logging: ' + data.message, 'danger');
                 }
             } catch (error) {
+                isLogging = false;
+                hideLoadingInLogs();
                 showAlert('Error starting logging: ' + error.message, 'danger');
             }
         }
 
         async function stopLogging() {
+            // Check if logging is active
+            if (!isLogging) {
+                showErrorPopup('Stop Logging Failed', 'No active logging session to stop. Please start logging first.');
+                return;
+            }
+
             try {
                 const response = await fetch('/api/stop-logging', {method: 'POST'});
                 const data = await response.json();
@@ -423,24 +569,35 @@ HTML_TEMPLATE = """
         }
 
         async function clearLogs() {
+            // Check if there are logs to clear
+            const allLogsContent = document.getElementById('all-log-output').textContent;
+            if (!isLogging && (allLogsContent === "No logs available. Click 'Start' to begin log capture." || 
+                allLogsContent === 'Logs cleared.' || 
+                allLogsContent.includes('Loading'))) {
+                showErrorPopup('Clear Logs Failed', 'No logs to clear. Please start logging first to capture logs.');
+                return;
+            }
+
             document.getElementById('all-log-output').textContent = 'Logs cleared.';
-            document.getElementById('filtered-log-output').textContent = 'Logs cleared.';
+            document.getElementById('cosine-log-output').innerHTML = `
+                <div class="text-muted text-center p-4">
+                    <i class="fas fa-code-branch fa-2x mb-2"></i><br>
+                    No CosineSimilarityCache logs available.
+                </div>
+            `;
+            document.getElementById('filtered-log-output').innerHTML = `
+                <div class="text-muted text-center p-4">
+                    <i class="fas fa-filter fa-2x mb-2"></i><br>
+                    No filtered logs available.<br>
+                    Enter filter keywords and start logging to see matches.
+                </div>
+            `;
             
             try {
                 await fetch('/api/clear-logs', {method: 'POST'});
                 showAlert('Logs cleared successfully', 'success');
             } catch (error) {
                 showAlert('Error clearing logs: ' + error.message, 'danger');
-            }
-        }
-
-        async function saveLogs() {
-            try {
-                const response = await fetch('/api/save-logs', {method: 'POST'});
-                const data = await response.json();
-                showAlert(data.message, data.success ? 'success' : 'danger');
-            } catch (error) {
-                showAlert('Error saving logs: ' + error.message, 'danger');
             }
         }
 
@@ -452,19 +609,114 @@ HTML_TEMPLATE = """
                     body: JSON.stringify({os_type: osType})
                 });
                 const data = await response.json();
-                showAlert(data.message, data.success ? 'success' : 'danger');
+                
+                // Show modal popup with result
+                const modal = new bootstrap.Modal(document.getElementById('filePullModal'));
+                const modalTitle = document.getElementById('pullModalTitle');
+                const modalMessage = document.getElementById('pullModalMessage');
+                const modalHeader = document.getElementById('pullModalHeader');
+                
+                if (data.success) {
+                    modalTitle.innerHTML = '<i class="fas fa-check-circle"></i> File Pull Successful';
+                    modalHeader.style.background = 'var(--gold)';
+                    modalHeader.style.color = 'var(--black)';
+                    modalMessage.textContent = data.message;
+                } else {
+                    modalTitle.innerHTML = '<i class="fas fa-exclamation-triangle"></i> File Pull Failed';
+                    modalHeader.style.background = '#dc3545';
+                    modalHeader.style.color = 'white';
+                    modalMessage.textContent = data.message;
+                }
+                
+                modal.show();
             } catch (error) {
-                showAlert('Error pulling file: ' + error.message, 'danger');
+                const modal = new bootstrap.Modal(document.getElementById('filePullModal'));
+                const modalTitle = document.getElementById('pullModalTitle');
+                const modalMessage = document.getElementById('pullModalMessage');
+                const modalHeader = document.getElementById('pullModalHeader');
+                
+                modalTitle.innerHTML = '<i class="fas fa-exclamation-triangle"></i> File Pull Error';
+                modalHeader.style.background = '#dc3545';
+                modalHeader.style.color = 'white';
+                modalMessage.textContent = 'Error pulling file: ' + error.message;
+                modal.show();
             }
         }
 
-        function applyFilter() {
-            const filter = document.getElementById('grep-filter').value;
-            if (!filter.trim()) {
-                showAlert('Please enter a filter keyword', 'warning');
+        function showSaveDialog() {
+            // Check if there are logs to save
+            const allLogsContent = document.getElementById('all-log-output').textContent;
+            if (!isLogging && (allLogsContent === "No logs available. Click 'Start' to begin log capture." || 
+                allLogsContent === 'Logs cleared.' || 
+                allLogsContent.includes('Loading'))) {
+                showErrorPopup('Save Logs Failed', 'No logs to save. Please start logging first to capture logs.');
                 return;
             }
-            showAlert('Filter applied: ' + filter, 'success');
+
+            // Set default filename with timestamp
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+            document.getElementById('filename-input').value = `adb_logs_${timestamp}`;
+            
+            const modal = new bootstrap.Modal(document.getElementById('saveModal'));
+            modal.show();
+        }
+
+        async function saveLogsWithFilename() {
+            const filename = document.getElementById('filename-input').value.trim();
+            if (!filename) {
+                showAlert('Please enter a filename', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/save-logs', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({filename: filename})
+                });
+                const data = await response.json();
+                
+                // Close modal
+                const modal = bootstrap.Modal.getInstance(document.getElementById('saveModal'));
+                modal.hide();
+                
+                showAlert(data.message, data.success ? 'success' : 'danger');
+            } catch (error) {
+                showAlert('Error saving logs: ' + error.message, 'danger');
+            }
+        }
+
+        function applyFilters() {
+            const filter1 = document.getElementById('grep-filter1').value.trim();
+            const filter2 = document.getElementById('grep-filter2').value.trim();
+            const filter3 = document.getElementById('grep-filter3').value.trim();
+            const filter4 = document.getElementById('grep-filter4').value.trim();
+            const filter5 = document.getElementById('grep-filter5').value.trim();
+            
+            if (!filter1 && !filter2 && !filter3 && !filter4 && !filter5) {
+                showAlert('Please enter at least one filter keyword', 'warning');
+                return;
+            }
+            
+            const filters = [filter1, filter2, filter3, filter4, filter5].filter(f => f !== '');
+            
+            // Send filters to backend to apply them
+            fetch('/api/apply-filters', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({filters: filters})
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(`Filters applied: ${filters.join(', ')}`, 'success');
+                } else {
+                    showAlert('Failed to apply filters: ' + data.message, 'danger');
+                }
+            })
+            .catch(error => {
+                showAlert('Error applying filters: ' + error.message, 'danger');
+            });
         }
 
         async function updateLogs() {
@@ -475,10 +727,59 @@ HTML_TEMPLATE = """
                 const data = await response.json();
                 
                 if (data.all_logs) {
-                    document.getElementById('all-log-output').textContent = data.all_logs;
+                    // Remove loading indicator if it exists
+                    const allLogOutput = document.getElementById('all-log-output');
+                    if (allLogOutput.innerHTML.includes('loading-indicator')) {
+                        // First logs arrived, hide loading
+                        allLogOutput.textContent = data.all_logs;
+                    } else {
+                        allLogOutput.textContent = data.all_logs;
+                    }
                 }
-                if (data.filtered_logs) {
-                    document.getElementById('filtered-log-output').textContent = data.filtered_logs;
+                
+                // Update CosineSimilarity logs
+                if (data.cosine_logs !== undefined) {
+                    const cosineOutput = document.getElementById('cosine-log-output');
+                    // Remove loading indicator if it exists
+                    if (cosineOutput.innerHTML.includes('loading-indicator')) {
+                        cosineOutput.textContent = '';
+                    }
+                    
+                    if (data.cosine_logs === "" || data.cosine_logs.includes('<div class="text-muted')) {
+                        // HTML message for no matches or empty
+                        cosineOutput.innerHTML = data.cosine_logs || `
+                            <div class="text-muted text-center p-4">
+                                <i class="fas fa-code-branch fa-2x mb-2"></i><br>
+                                No CosineSimilarityCache logs available.<br>
+                                <small>Waiting for matching patterns...</small>
+                            </div>
+                        `;
+                    } else {
+                        // Regular log text
+                        cosineOutput.textContent = data.cosine_logs;
+                    }
+                }
+                
+                if (data.filtered_logs !== undefined) {
+                    const filteredOutput = document.getElementById('filtered-log-output');
+                    // Remove loading indicator if it exists
+                    if (filteredOutput.innerHTML.includes('loading-indicator')) {
+                        filteredOutput.textContent = '';
+                    }
+                    
+                    if (data.filtered_logs === "" || data.filtered_logs.includes('<div class="text-muted')) {
+                        // HTML message for no matches or empty
+                        filteredOutput.innerHTML = data.filtered_logs || `
+                            <div class="text-muted text-center p-4">
+                                <i class="fas fa-filter fa-2x mb-2"></i><br>
+                                No filtered logs available.<br>
+                                Enter filter keywords and start logging to see matches.
+                            </div>
+                        `;
+                    } else {
+                        // Regular log text - preserve existing content and append new
+                        filteredOutput.textContent = data.filtered_logs;
+                    }
                 }
             } catch (error) {
                 console.error('Error updating logs:', error);
@@ -502,6 +803,49 @@ HTML_TEMPLATE = """
                 }
             }, 5000);
         }
+
+        function showLoadingInLogs() {
+            const loadingHTML = `
+                <div class="text-center p-5" id="loading-indicator">
+                    <div class="spinner-border text-warning" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div class="mt-3 text-warning">
+                        <h5><i class="fas fa-sync fa-spin"></i> Starting Log Capture...</h5>
+                        <p class="text-muted">Detecting device and initializing log stream...</p>
+                        <small class="text-muted">This may take up to 30 seconds</small>
+                    </div>
+                </div>
+            `;
+            document.getElementById('all-log-output').innerHTML = loadingHTML;
+            document.getElementById('cosine-log-output').innerHTML = loadingHTML;
+            document.getElementById('filtered-log-output').innerHTML = loadingHTML;
+        }
+
+        function hideLoadingInLogs() {
+            document.getElementById('all-log-output').textContent = "No logs available. Click 'Start' to begin log capture.";
+            document.getElementById('cosine-log-output').innerHTML = `
+                <div class="text-muted text-center p-4">
+                    <i class="fas fa-code-branch fa-2x mb-2"></i><br>
+                    No CosineSimilarityCache logs available.
+                </div>
+            `;
+            document.getElementById('filtered-log-output').textContent = 'No filtered logs available.';
+        }
+
+        function showErrorPopup(title, message) {
+            const modal = new bootstrap.Modal(document.getElementById('filePullModal'));
+            const modalTitle = document.getElementById('pullModalTitle');
+            const modalMessage = document.getElementById('pullModalMessage');
+            const modalHeader = document.getElementById('pullModalHeader');
+            
+            modalTitle.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${title}`;
+            modalHeader.style.background = '#dc3545';
+            modalHeader.style.color = 'white';
+            modalMessage.textContent = message;
+            
+            modal.show();
+        }
     </script>
 </body>
 </html>
@@ -512,15 +856,74 @@ class ADBManager:
         self.current_device = None
         self.log_buffer = []
         self.filtered_log_buffer = []
-        self.current_filter = ""
+        self.cosine_log_buffer = []  # New buffer for CosineSimilarityCache logs
+        self.current_filters = []  # User filters
+        self.platform_system = platform.system().lower()
+        self.current_log_method = None
+        self.is_logging_active = False
+        self.log_thread = None
+        self.log_process = None
+        self.stop_event = threading.Event()  # Clean thread termination
+        self.raw_fallback_mode = False  # Show raw logs when no patterns match
+        self.detection_verdict = ""  # Store detection result for UI
+        
+        # CosineSimilarity specific patterns
+        self.cosine_patterns = [
+            r"CosineSimilarityCache::LookupImpl",
+            r"eventType=Speech", 
+            r"RESULT_GENERATOR",
+            r"Calling onCacheUpdate"
+        ]
+        
+        # ADB command setup
+        self.adb_cmd = 'adb.exe' if self.platform_system == 'windows' else 'adb'
+        
+        debug_logger.info(f"ADBManager initialized for platform: {self.platform_system}")
+    
+    def _run_adb_with_retry(self, cmd, max_attempts=3, timeout=10):
+        """Run ADB command with exponential backoff retry logic"""
+        for attempt in range(max_attempts):
+            try:
+                delay = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                if attempt > 0:
+                    debug_logger.debug(f"Retry attempt {attempt + 1}/{max_attempts} after {delay}s delay")
+                    time.sleep(delay)
+                
+                debug_logger.debug(f"Running ADB command: {' '.join(cmd) if isinstance(cmd, list) else cmd}")
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout
+                )
+                
+                if result.returncode == 0:
+                    debug_logger.debug(f"ADB command successful on attempt {attempt + 1}")
+                    return result
+                else:
+                    debug_logger.warning(f"ADB command failed (attempt {attempt + 1}): {result.stderr}")
+                    if attempt == max_attempts - 1:
+                        return result  # Return failed result on last attempt
+                        
+            except subprocess.TimeoutExpired:
+                debug_logger.error(f"ADB command timeout on attempt {attempt + 1}/{max_attempts}")
+                if attempt == max_attempts - 1:
+                    raise
+            except Exception as e:
+                debug_logger.error(f"ADB command exception on attempt {attempt + 1}: {str(e)}", exc_info=True)
+                if attempt == max_attempts - 1:
+                    raise
+        
+        return None
         
     def get_connected_devices(self):
-        """Get list of connected ADB devices"""
+        """Get list of connected ADB devices - Windows compatible with retry logic"""
         try:
-            result = subprocess.run(['adb', 'devices'], 
-                                  capture_output=True, text=True, timeout=10)
+            debug_logger.info("Getting connected ADB devices")
+            result = self._run_adb_with_retry([self.adb_cmd, 'devices'], max_attempts=3, timeout=10)
             
-            if result.returncode != 0:
+            if not result or result.returncode != 0:
+                debug_logger.error(f"ADB devices command failed: {result.stderr if result else 'No result'}")
                 return []
             
             devices = []
@@ -534,206 +937,677 @@ class ADBManager:
                         status = parts[1]
                         devices.append({'id': device_id, 'status': status})
             
+            debug_logger.info(f"Found {len(devices)} ADB devices: {[d['id'] for d in devices]}")
             return devices
+            
+        except FileNotFoundError:
+            debug_logger.error(f"ADB executable not found in PATH: {self.adb_cmd}")
+            return []
         except Exception as e:
-            print(f"Error getting devices: {e}")
+            debug_logger.error(f"Error getting devices: {str(e)}", exc_info=True)
             return []
     
-    def detect_device_os(self, device_id):
-        """Detect device OS type using trial and error log method"""
-        # We'll determine OS type by trying different log commands
-        # This is more reliable than checking properties
-        return 'unknown'  # Will be determined during logging trial
+    def aggressive_cleanup(self, device_id=None):
+        """Aggressive cleanup for robust restart capability"""
+        global log_process, is_logging
+        
+        debug_logger.info("=" * 60)
+        debug_logger.info("STARTING AGGRESSIVE CLEANUP")
+        debug_logger.info("=" * 60)
+        
+        self.add_log_entry("[INFO] Starting aggressive cleanup for robust restart")
+        
+        # Step 1: Signal threads to stop
+        debug_logger.info("Step 1: Signaling stop event")
+        self.stop_event.set()
+        
+        # Step 2: Stop Python logging flags
+        is_logging = False
+        self.is_logging_active = False
+        debug_logger.info("Step 2: Logging flags set to False")
+        
+        # Step 3: Kill Python log process
+        if self.log_process:
+            try:
+                pid = self.log_process.pid
+                self.add_log_entry(f"[INFO] Terminating Python log process (PID: {pid})")
+                debug_logger.info(f"Terminating log process PID: {pid}")
+                
+                # Kill process tree (important for Windows)
+                if self.platform_system == 'windows':
+                    try:
+                        parent = psutil.Process(pid)
+                        children = parent.children(recursive=True)
+                        debug_logger.debug(f"Found {len(children)} child processes")
+                        
+                        for child in children:
+                            debug_logger.debug(f"Terminating child PID: {child.pid}")
+                            child.terminate()
+                        parent.terminate()
+                        
+                        # Wait and force kill if needed
+                        gone, alive = psutil.wait_procs([parent] + children, timeout=3)
+                        for p in alive:
+                            debug_logger.warning(f"Force killing PID: {p.pid}")
+                            p.kill()
+                    except psutil.NoSuchProcess:
+                        debug_logger.debug("Process already terminated")
+                else:
+                    # Unix: Standard termination
+                    self.log_process.terminate()
+                    try:
+                        self.log_process.wait(timeout=3)
+                        debug_logger.info("Process terminated gracefully")
+                    except subprocess.TimeoutExpired:
+                        debug_logger.warning("Process didn't terminate, force killing")
+                        self.log_process.kill()
+                        self.log_process.wait(timeout=2)
+                        
+            except Exception as e:
+                self.add_log_entry(f"[WARN] Python process cleanup error: {str(e)}")
+                debug_logger.error(f"Process cleanup error: {str(e)}", exc_info=True)
+            
+            self.log_process = None
+            log_process = None
+        
+        # Step 4: Kill device-side processes
+        if device_id:
+            try:
+                self.add_log_entry("[INFO] Cleaning up device-side processes")
+                debug_logger.info(f"Cleaning device-side processes for {device_id}")
+                
+                # Kill logcat processes
+                result = self._run_adb_with_retry(
+                    [self.adb_cmd, '-s', device_id, 'shell', 'pkill', '-f', 'logcat'],
+                    max_attempts=2, timeout=5
+                )
+                debug_logger.debug(f"pkill logcat result: {result.returncode if result else 'None'}")
+                
+                # Kill journalctl processes  
+                result = self._run_adb_with_retry(
+                    [self.adb_cmd, '-s', device_id, 'shell', 'pkill', '-f', 'journalctl'],
+                    max_attempts=2, timeout=5
+                )
+                debug_logger.debug(f"pkill journalctl result: {result.returncode if result else 'None'}")
+                
+                time.sleep(1)  # Let device settle
+                
+            except Exception as e:
+                self.add_log_entry(f"[WARN] Device cleanup warning: {str(e)}")
+                debug_logger.warning(f"Device cleanup warning: {str(e)}")
+        
+        # Step 5: ADB server reset (critical for Windows reliability)
+        try:
+            self.add_log_entry("[INFO] Resetting ADB server for clean state")
+            debug_logger.info("Killing ADB server")
+            subprocess.run([self.adb_cmd, 'kill-server'], capture_output=True, timeout=5)
+            time.sleep(2)
+            debug_logger.info("Starting ADB server")
+            subprocess.run([self.adb_cmd, 'start-server'], capture_output=True, timeout=10)
+            time.sleep(3)  # Let ADB stabilize
+            debug_logger.info("ADB server reset complete")
+        except Exception as e:
+            self.add_log_entry(f"[WARN] ADB server reset warning: {str(e)}")
+            debug_logger.error(f"ADB server reset error: {str(e)}", exc_info=True)
+        
+        # Step 6: Clean up thread references
+        if self.log_thread and self.log_thread.is_alive():
+            try:
+                debug_logger.info("Waiting for log thread to terminate")
+                self.log_thread.join(timeout=2)
+                if self.log_thread.is_alive():
+                    debug_logger.warning("Log thread did not terminate in time")
+            except Exception as e:
+                debug_logger.error(f"Thread join error: {str(e)}")
+        self.log_thread = None
+        
+        # Step 7: Reset stop event for next run
+        self.stop_event.clear()
+        debug_logger.info("Stop event cleared")
+        
+        # Step 8: Reset all state variables
+        self.current_device = None
+        self.current_log_method = None
+        self.raw_fallback_mode = False
+        self.detection_verdict = ""
+        debug_logger.info("State variables reset")
+        
+        # Step 9: Logs are NOT cleared on stop - user must click Clear button explicitly
+        debug_logger.info("Logs preserved (not cleared on stop)")
+        
+        # Step 10: Clean up log file
+        if hasattr(self, 'log_file_path') and self.log_file_path and os.path.exists(self.log_file_path):
+            try:
+                os.remove(self.log_file_path)
+                debug_logger.info(f"Removed log file: {self.log_file_path}")
+            except Exception as e:
+                debug_logger.warning(f"Could not remove log file: {str(e)}")
+        self.log_file_path = None
+        
+        self.add_log_entry("[SUCCESS] Aggressive cleanup completed")
+        debug_logger.info("=" * 60)
+        debug_logger.info("AGGRESSIVE CLEANUP COMPLETE")
+        debug_logger.info("=" * 60)
+        
+        # Final stabilization delay
+        time.sleep(2)
+
+    def test_device_connectivity(self, device_id, max_attempts=3):
+        """Robust device connectivity testing with retry logic"""
+        debug_logger.info(f"Testing connectivity to device: {device_id}")
+        
+        for attempt in range(max_attempts):
+            try:
+                self.add_log_entry(f"[INFO] Testing connectivity to {device_id} (attempt {attempt + 1}/{max_attempts})")
+                
+                result = self._run_adb_with_retry(
+                    [self.adb_cmd, '-s', device_id, 'shell', 'getprop', 'ro.build.type'],
+                    max_attempts=2, timeout=10
+                )
+                
+                if result and result.returncode == 0 and result.stdout.strip():
+                    build_type = result.stdout.strip()
+                    self.add_log_entry(f"[SUCCESS] Device connectivity confirmed: {build_type}")
+                    debug_logger.info(f"Device {device_id} connectivity OK (build type: {build_type})")
+                    return True
+                else:
+                    if attempt < max_attempts - 1:
+                        self.add_log_entry(f"[WARN] Connectivity attempt {attempt + 1} failed, retrying...")
+                        debug_logger.warning(f"Connectivity attempt {attempt + 1} failed")
+                        time.sleep(3)
+                    else:
+                        debug_logger.error(f"All connectivity attempts failed for {device_id}")
+                    
+            except Exception as e:
+                if attempt < max_attempts - 1:
+                    self.add_log_entry(f"[WARN] Connectivity error: {str(e)}, retrying...")
+                    debug_logger.error(f"Connectivity error (attempt {attempt + 1}): {str(e)}", exc_info=True)
+                    time.sleep(3)
+                else:
+                    self.add_log_entry(f"[ERROR] Final connectivity test failed: {str(e)}")
+                    debug_logger.error(f"Final connectivity test failed: {str(e)}", exc_info=True)
+        
+        return False
+    
+    def add_log_entry(self, message, apply_filters=True):
+        """Add a log entry and apply filters if needed"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        log_entry = f"[{timestamp}] {message}\n"
+        
+        # Add to main log buffer
+        self.log_buffer.append(log_entry)
+        if len(self.log_buffer) > 1000:
+            self.log_buffer.pop(0)
+        
+        # Apply filters if requested
+        if apply_filters and self.current_filters:
+            for filter_keyword in self.current_filters:
+                if filter_keyword and filter_keyword.lower() in message.lower():
+                    self.filtered_log_buffer.append(log_entry)
+                    if len(self.filtered_log_buffer) > 1000:
+                        self.filtered_log_buffer.pop(0)
+                    print(f"FILTERED LOG MATCH: '{filter_keyword}' found in: {message.strip()}")
+                    break
     
     def start_logging(self, device_id):
-        """Start logging for specified device using trial and error method"""
+        """Main entry point for starting logging - delegates to robust implementation"""
+        return self.start_logging_robust(device_id)
+    
+    def start_logging_robust(self, device_id):
+        """Robust logging with Python-side filtering (no shell pipes)"""
         global log_process, is_logging
         
         try:
-            self.stop_logging()  # Stop any existing logging
+            # Validate input
+            if not device_id or not device_id.strip():
+                return False, "❌ Device ID is required"
+            
+            device_id = device_id.strip()
+            
+            # Step 1: Aggressive cleanup first
+            self.aggressive_cleanup(device_id)
+            
+            # Step 2: Test connectivity 
+            if not self.test_device_connectivity(device_id):
+                return False, f"❌ Cannot establish reliable connection to device {device_id}. Check USB debugging and ADB setup."
+            
             self.current_device = device_id
+            self.add_log_entry(f"[INFO] Starting robust logging for device: {device_id}")
+            self.add_log_entry(f"[INFO] Platform: {self.platform_system.title()}, ADB: {self.adb_cmd}")
             
-            # Add a status message to log buffer for user feedback
-            self.log_buffer.append("[INFO] Starting automatic log detection...\n")
+            # Step 3: Try log methods with file redirection
+            # Generate unique log file path
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            self.log_file_path = os.path.join(os.getcwd(), f"adb_logs_{device_id}_{timestamp}.txt")
             
-            # Trial and error method - try different log commands
             log_methods = [
                 {
-                    'name': 'FOS/Puffin (logcat)',
-                    'command': ['adb', '-s', device_id, 'logcat'],
+                    'name': 'FOS/Puffin (logcat with file redirection)',
+                    'command': [self.adb_cmd, '-s', device_id, 'shell', 'logcat', '-c'],  # Clear first
+                    'redirect_command': f'{self.adb_cmd} -s {device_id} logcat',  # File redirection cmd
                     'os_type': 'fos'
                 },
                 {
-                    'name': 'Vega (journalctl)',
-                    'command': ['adb', '-s', device_id, 'shell', 'journalctl', '-f'],
+                    'name': 'Vega (journalctl with file redirection)', 
+                    'command': None,  # No clear command
+                    'redirect_command': f'{self.adb_cmd} -s {device_id} shell journalctl -f',  # File redirection cmd
                     'os_type': 'vega'
                 }
             ]
             
+            debug_logger.info(f"Starting detection phase for device {device_id}")
+            debug_logger.info(f"Log file path: {self.log_file_path}")
+            
             for i, method in enumerate(log_methods, 1):
-                self.log_buffer.append(f"[INFO] Trying method {i}/2: {method['name']}...\n")
+                self.add_log_entry(f"[INFO] Trying method {i}/2: {method['name']}")
+                debug_logger.info(f"Detection attempt {i}/2: {method['name']}")
                 
                 try:
-                    # Try to start the log process
-                    test_process = subprocess.Popen(method['command'], 
-                                                  stdout=subprocess.PIPE, 
-                                                  stderr=subprocess.PIPE,
-                                                  text=True,
-                                                  bufsize=1)
+                    # Clear buffer for FOS
+                    if method['command']:
+                        self.add_log_entry("[INFO] Clearing logcat buffer...")
+                        subprocess.run(method['command'], capture_output=True, timeout=5)
+                        time.sleep(1)
                     
-                    # Wait a bit to see if we get any output or error
-                    time.sleep(2)
+                    # Start streaming process with file redirection using shell
+                    full_command = f"{method['redirect_command']} > \"{self.log_file_path}\""
+                    self.add_log_entry(f"[INFO] Starting log capture with file redirection")
+                    debug_logger.debug(f"Shell command: {full_command}")
                     
-                    # Check if process is still running
-                    if test_process.poll() is not None:
-                        # Process died, check error output
-                        _, stderr = test_process.communicate(timeout=1)
-                        self.log_buffer.append(f"[ERROR] {method['name']} failed: {stderr.strip()}\n")
-                        continue
+                    # Use shell=True for redirection to work
+                    test_process = subprocess.Popen(
+                        full_command,
+                        shell=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True
+                    )
+                    debug_logger.debug(f"Started process PID: {test_process.pid}")
                     
-                    # Check if we can read from stdout (indicates logs are flowing)
-                    try:
-                        # Use select to check if data is available without blocking
-                        ready, _, _ = select.select([test_process.stdout], [], [], 3)
-                        if ready:
-                            # We have data available, this method works!
+                    # Test for 10 seconds to see if file is being written
+                    self.add_log_entry("[INFO] Testing log capture for 10 seconds...")
+                    start_time = time.time()
+                    time.sleep(5)  # Wait for file to be created and written
+                    
+                    # Check if file exists and has content
+                    if os.path.exists(self.log_file_path):
+                        file_size = os.path.getsize(self.log_file_path)
+                        if file_size > 100:  # At least 100 bytes written
+                            self.add_log_entry(f"[SUCCESS] {method['name']} working! File size: {file_size} bytes")
+                            debug_logger.info(f"✅ Detection successful: {method['name']} (file size: {file_size} bytes)")
+                            
+                            # This method works, start actual logging
+                            self.log_process = test_process
                             log_process = test_process
                             is_logging = True
-                            detected_os = method['os_type']
+                            self.is_logging_active = True
                             
-                            # Add success message
-                            self.log_buffer.append(f"[SUCCESS] {method['name']} method works! Auto-detected: {detected_os.upper()}\n")
-                            self.log_buffer.append("[INFO] Starting real-time log capture...\n")
+                            self.current_log_method = method
+                            self.detection_verdict = f"✅ Auto-detected: {method['os_type'].upper()} ({method['name']})"
                             
-                            # Start background thread to read logs
-                            log_thread = threading.Thread(target=self._read_logs, daemon=True)
-                            log_thread.start()
+                            # Start background thread for reading file
+                            self.log_thread = threading.Thread(
+                                target=self._read_logs_from_file, 
+                                daemon=True
+                            )
+                            self.log_thread.start()
+                            debug_logger.info("Background file reader thread started")
                             
-                            return True, f"Started logging for {device_id} using {method['name']} method (Auto-detected: {detected_os.upper()})"
+                            return True, f"✅ Started logging for {device_id} using {method['name']} (Detected: {method['os_type'].upper()})"
                         else:
-                            # No data in 3 seconds, try next method
-                            self.log_buffer.append(f"[WARN] {method['name']} - no logs received in 3 seconds, trying next method...\n")
-                            try:
-                                test_process.terminate()
-                                test_process.wait(timeout=2)
-                            except:
-                                try:
-                                    test_process.kill()
-                                except:
-                                    pass
-                            continue
-                            
-                    except Exception as e:
-                        self.log_buffer.append(f"[ERROR] {method['name']} error: {str(e)}\n")
+                            self.add_log_entry(f"[WARN] File created but no significant data ({file_size} bytes)")
+                            debug_logger.warning(f"File exists but insufficient data: {file_size} bytes")
+                    else:
+                        self.add_log_entry(f"[WARN] Log file not created after 5 seconds")
+                        debug_logger.warning("Log file was not created")
+                    
+                    # Method failed - clean up
+                    try:
+                        test_process.terminate()
+                        test_process.wait(timeout=2)
+                    except:
                         try:
-                            test_process.terminate()
-                            test_process.wait(timeout=2)
+                            test_process.kill()
                         except:
-                            try:
-                                test_process.kill()
-                            except:
-                                pass
-                        continue
-                        
-                except subprocess.TimeoutExpired:
-                    self.log_buffer.append(f"[ERROR] {method['name']} timed out\n")
-                    continue
+                            pass
+                    
+                    # Remove failed log file
+                    if os.path.exists(self.log_file_path):
+                        try:
+                            os.remove(self.log_file_path)
+                        except:
+                            pass
+                    
                 except Exception as e:
-                    self.log_buffer.append(f"[ERROR] Failed to start {method['name']}: {str(e)}\n")
+                    self.add_log_entry(f"[ERROR] {method['name']} exception: {str(e)}")
+                    debug_logger.error(f"Detection method {method['name']} exception: {str(e)}", exc_info=True)
                     continue
             
-            # If we get here, all methods failed
-            self.log_buffer.append("[ERROR] All logging methods failed! Check device connection and ADB setup.\n")
-            return False, "❌ All logging methods failed. Please check device connection and ADB setup."
+            # All detection methods failed - Enter fallback mode with logcat
+            debug_logger.warning("All detection methods failed, entering fallback mode")
+            self.add_log_entry("[WARN] Detection failed for both methods")
+            self.add_log_entry("[INFO] Entering FALLBACK MODE with logcat file redirection")
             
-        except Exception as e:
-            self.log_buffer.append(f"[FATAL ERROR] Logging startup failed: {str(e)}\n")
-            return False, f"Failed to start logging: {str(e)}"
-    
-    def stop_logging(self):
-        """Stop current logging"""
-        global log_process, is_logging
-        
-        is_logging = False
-        if log_process:
             try:
-                log_process.terminate()
-                log_process.wait(timeout=2)
-            except:
-                try:
-                    log_process.kill()
-                except:
-                    pass
-            log_process = None
-        
-        return True, "Logging stopped"
-    
-    def _read_logs(self):
-        """Background thread to read logs"""
-        global log_process, is_logging
-        
-        while is_logging and log_process:
-            try:
-                line = log_process.stdout.readline()
-                if line:
-                    timestamp = datetime.now().strftime("%H:%M:%S")
-                    log_entry = f"[{timestamp}] {line.rstrip()}\n"
-                    
-                    # Add to main log buffer
-                    self.log_buffer.append(log_entry)
-                    if len(self.log_buffer) > 1000:  # Keep last 1000 lines
-                        self.log_buffer.pop(0)
-                    
-                    # Add to filtered log buffer if matches filter
-                    if self.current_filter and self.current_filter.lower() in line.lower():
-                        self.filtered_log_buffer.append(log_entry)
-                        if len(self.filtered_log_buffer) > 1000:
-                            self.filtered_log_buffer.pop(0)
+                # Use logcat as default fallback with file redirection
+                fallback_command = f'{self.adb_cmd} -s {device_id} logcat > "{self.log_file_path}"'
+                debug_logger.info(f"Starting fallback logcat: {fallback_command}")
                 
-                elif log_process.poll() is not None:
-                    break
+                test_process = subprocess.Popen(
+                    fallback_command,
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True
+                )
+                
+                # Give it 5 seconds to start
+                time.sleep(5)
+                
+                # Check if file is being written
+                if os.path.exists(self.log_file_path):
+                    file_size = os.path.getsize(self.log_file_path)
+                    if file_size > 50:
+                        # Process is running
+                        self.log_process = test_process
+                        log_process = test_process
+                        is_logging = True
+                        self.is_logging_active = True
+                        self.raw_fallback_mode = True
+                        
+                        self.current_log_method = {
+                            'name': 'Fallback logcat (file redirection)',
+                            'redirect_command': fallback_command,
+                            'os_type': 'fallback'
+                        }
+                        self.detection_verdict = "⚠️ Fallback Mode: logcat (file redirection)"
+                        
+                        # Start background thread
+                        self.log_thread = threading.Thread(
+                            target=self._read_logs_from_file,
+                            daemon=True
+                        )
+                        self.log_thread.start()
+                        
+                        debug_logger.info("✅ Fallback mode activated successfully")
+                        return True, "⚠️ Started in FALLBACK MODE with logcat file redirection"
+                else:
+                    debug_logger.error("Fallback logcat file not created")
+                    return False, "❌ Even fallback logcat failed to start"
                     
             except Exception as e:
-                print(f"Error reading logs: {e}")
-                break
+                debug_logger.error(f"Fallback mode failed: {str(e)}", exc_info=True)
+                return False, f"❌ All logging methods failed including fallback: {str(e)}"
+            
+        except Exception as e:
+            self.aggressive_cleanup()
+            return False, f"❌ Logging startup error: {str(e)}"
     
-    def get_logs(self):
-        """Get current logs"""
-        all_logs = ''.join(self.log_buffer[-500:])  # Last 500 lines
-        filtered_logs = ''.join(self.filtered_log_buffer[-500:])
-        return all_logs, filtered_logs
+    def _read_logs_from_file(self):
+        """Read logs continuously from redirected file with grep filtering"""
+        global is_logging
+        
+        self.add_log_entry("[INFO] Starting file-based log reading thread")
+        debug_logger.info(f"File reader thread started, monitoring: {self.log_file_path}")
+        
+        consecutive_errors = 0
+        max_consecutive_errors = 10
+        last_position = 0
+        
+        try:
+            while is_logging and self.is_logging_active and not self.stop_event.is_set():
+                try:
+                    # Check if process is still alive (device disconnect detection)
+                    if self.log_process and self.log_process.poll() is not None:
+                        returncode = self.log_process.returncode
+                        self.add_log_entry(f"[ERROR] Log process terminated unexpectedly (exit code: {returncode})")
+                        debug_logger.error(f"Log process died with return code: {returncode}")
+                        
+                        # Check if device is still connected
+                        devices = self.get_connected_devices()
+                        if not any(d['id'] == self.current_device for d in devices):
+                            self.add_log_entry(f"[ERROR] Device {self.current_device} disconnected!")
+                            debug_logger.error(f"Device {self.current_device} disconnected")
+                        break
+                    
+                    # Read new lines from file
+                    if os.path.exists(self.log_file_path):
+                        with open(self.log_file_path, 'r', encoding='utf-8', errors='replace') as f:
+                            f.seek(last_position)
+                            new_lines = f.readlines()
+                            last_position = f.tell()
+                            
+                            for line in new_lines:
+                                consecutive_errors = 0  # Reset error counter on successful read
+                                line = line.strip()
+                                if line:  # Non-empty line
+                                    timestamp = datetime.now().strftime("%H:%M:%S")
+                                    log_entry = f"[{timestamp}] {line}\n"
+                                    
+                                    # Add all lines to main log buffer (unlimited size for saving)
+                                    self.log_buffer.append(log_entry)
+                                    # No size limit - keep all logs for complete save
+                                    
+                                    # Check for CosineSimilarity patterns
+                                    matches_cosine = any(
+                                        re.search(pattern, line, re.IGNORECASE) 
+                                        for pattern in self.cosine_patterns
+                                    )
+                                    if matches_cosine:
+                                        self.cosine_log_buffer.append(log_entry)
+                                        # No size limit - keep all cosine logs for complete save
+                                        debug_logger.debug(f"CosineSimilarity pattern match")
+                                    
+                                    # Apply user filters for filtered log tab
+                                    if self.current_filters:
+                                        for user_filter in self.current_filters:
+                                            if user_filter and user_filter.lower() in line.lower():
+                                                self.filtered_log_buffer.append(log_entry)
+                                                # No size limit - keep all filtered logs for complete save
+                                                debug_logger.debug(f"User filter match: '{user_filter}'")
+                                                break
+                                    else:
+                                        # No filters applied, show all logs in filtered tab too
+                                        self.filtered_log_buffer.append(log_entry)
+                                        # No size limit - keep all logs
+                    else:
+                        # File doesn't exist yet, wait
+                        self.add_log_entry("[WARN] Log file not found, waiting...")
+                        debug_logger.warning(f"Log file not found: {self.log_file_path}")
+                        time.sleep(2)
+                    
+                    # Brief pause to avoid busy waiting
+                    time.sleep(0.5)
+                        
+                except UnicodeDecodeError as e:
+                    # Handle encoding errors gracefully
+                    consecutive_errors += 1
+                    debug_logger.warning(f"Unicode decode error ({consecutive_errors}/{max_consecutive_errors}): {str(e)}")
+                    self.add_log_entry(f"[WARN] Encoding issue encountered, continuing")
+                    
+                    if consecutive_errors >= max_consecutive_errors:
+                        debug_logger.error("Too many consecutive encoding errors, stopping reader thread")
+                        self.add_log_entry("[ERROR] Too many encoding errors, stopping log reader")
+                        break
+                    
+                    time.sleep(0.5)
+                    
+                except Exception as e:
+                    consecutive_errors += 1
+                    debug_logger.error(f"File reading error ({consecutive_errors}/{max_consecutive_errors}): {str(e)}")
+                    self.add_log_entry(f"[ERROR] File reading error: {str(e)}")
+                    
+                    if consecutive_errors >= max_consecutive_errors:
+                        debug_logger.error("Too many consecutive errors, stopping reader thread")
+                        self.add_log_entry("[ERROR] Too many errors, stopping log reader")
+                        break
+                    
+                    time.sleep(1)
+        
+        except Exception as e:
+            debug_logger.error(f"File reader thread fatal error: {str(e)}", exc_info=True)
+            self.add_log_entry(f"[ERROR] File reader thread failed: {str(e)}")
+        
+        finally:
+            is_logging = False
+            self.is_logging_active = False
+            self.add_log_entry("[INFO] File-based log reading thread terminated")
+            debug_logger.info("File reader thread terminated")
+
+    def stop_logging(self):
+        """Stop logging with aggressive cleanup"""
+        was_logging = self.is_logging_active
+        
+        self.aggressive_cleanup(self.current_device)
+        
+        if was_logging:
+            self.add_log_entry("[SUCCESS] Logging stopped with complete cleanup")
+            return True, "✅ Logging stopped successfully with aggressive cleanup"
+        else:
+            return True, "ℹ️ No active logging to stop"
     
+    # OLD METHODS REMOVED - Using unified Python-side filtering approach
+    # Removed: _start_logging_unix (old shell-pipe approach)
+    # Removed: duplicate stop_logging method (old approach)
+    
+    # OLD METHOD REMOVED: _read_logs_windows_direct
+    # Now using unified _read_logs_with_python_filtering for all platforms
+
     def clear_logs(self):
-        """Clear log buffers"""
+        """Clear log buffers with validation"""
+        log_count = len(self.log_buffer)
+        filtered_count = len(self.filtered_log_buffer)
+        
+        if log_count == 0 and filtered_count == 0:
+            return "ℹ️ No logs to clear"
+        
         self.log_buffer.clear()
         self.filtered_log_buffer.clear()
+        
+        print(f"Cleared {log_count} main logs and {filtered_count} filtered logs")
+        return f"✅ Cleared {log_count} main logs and {filtered_count} filtered logs"
     
-    def set_filter(self, filter_keyword):
-        """Set log filter"""
-        self.current_filter = filter_keyword
-        # Clear existing filtered logs when filter changes
+    # OLD METHODS REMOVED: _read_logs_windows and _read_logs_unix
+    # Now using unified _read_logs_with_python_filtering for all platforms
+    
+    def get_logs(self):
+        """Get current logs including cosine similarity logs"""
+        # Return last 2000 lines for UI display (performance balance)
+        # Full logs saved when user clicks Save button
+        all_logs = ''.join(self.log_buffer[-2000:])
+        filtered_logs = ''.join(self.filtered_log_buffer[-2000:])
+        cosine_logs = ''.join(self.cosine_log_buffer[-2000:])
+        
+        # If no filtered logs but filters are applied, show helpful message
+        if self.current_filters and not filtered_logs.strip():
+            filtered_logs = f"""<div class="text-muted text-center p-4">
+<i class="fas fa-search fa-2x mb-2"></i><br>
+<strong>Active Filters:</strong> {', '.join(self.current_filters)}<br>
+<small>No logs match your filters yet. Waiting for matching log entries...</small>
+</div>"""
+        elif not self.current_filters:
+            filtered_logs = """<div class="text-muted text-center p-4">
+<i class="fas fa-filter fa-2x mb-2"></i><br>
+No filtered logs available.<br>
+Enter filter keywords and start logging to see matches.
+</div>"""
+        
+        # CosineSimilarity logs message
+        if not cosine_logs.strip():
+            cosine_logs = """<div class="text-muted text-center p-4">
+<i class="fas fa-code-branch fa-2x mb-2"></i><br>
+No CosineSimilarityCache logs available.<br>
+<small>Waiting for matching patterns...</small>
+</div>"""
+        
+        return all_logs, filtered_logs, cosine_logs
+    
+    def clear_logs(self):
+        """Clear log buffers with validation"""
+        log_count = len(self.log_buffer)
+        filtered_count = len(self.filtered_log_buffer)
+        cosine_count = len(self.cosine_log_buffer)
+        
+        if log_count == 0 and filtered_count == 0 and cosine_count == 0:
+            print("No logs to clear")
+            return "ℹ️ No logs to clear"
+        
+        self.log_buffer.clear()
+        self.filtered_log_buffer.clear()
+        self.cosine_log_buffer.clear()
+        
+        print(f"Cleared {log_count} main logs, {filtered_count} filtered logs, and {cosine_count} cosine logs")
+        return f"✅ Cleared {log_count} main logs, {filtered_count} filtered logs, and {cosine_count} cosine logs"
+    
+    def set_filters(self, filter_keywords):
+        """Set multiple log filters"""
+        self.current_filters = [f.strip() for f in filter_keywords if f.strip()]
+        # Clear existing filtered logs when filters change
         self.filtered_log_buffer.clear()
     
-    def save_logs(self):
-        """Save current logs to file"""
+    def save_logs(self, custom_filename=None):
+        """Save ALL logs to file (no size limit) with custom filename and validation"""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"adb_logs_{timestamp}.txt"
+            # Check if there are any logs to save
+            if not self.log_buffer:
+                return False, "❌ No logs to save. Start logging first to capture logs."
             
-            with open(filename, 'w') as f:
+            if custom_filename:
+                # Use custom filename, ensure .txt extension
+                if not custom_filename.endswith('.txt'):
+                    filename = f"{custom_filename}.txt"
+                else:
+                    filename = custom_filename
+            else:
+                # Use default timestamp filename
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"adb_logs_{timestamp}.txt"
+            
+            # Save complete logs (no truncation)
+            debug_logger.info(f"Saving {len(self.log_buffer)} log entries to {filename}")
+            
+            with open(filename, 'w', encoding='utf-8') as f:
                 f.write(f"ADB Logs - Generated: {datetime.now()}\n")
-                f.write("="*50 + "\n\n")
+                f.write(f"Platform: {self.platform_system.title()}\n")
+                f.write(f"Total log entries: {len(self.log_buffer)}\n")
+                f.write(f"CosineSimilarity logs: {len(self.cosine_log_buffer)}\n")
+                f.write(f"Filtered logs: {len(self.filtered_log_buffer)}\n")
+                f.write("="*80 + "\n\n")
+                
+                # Write ALL logs (complete buffer, no limit)
+                f.write("=== ALL LOGS ===\n")
                 f.writelines(self.log_buffer)
+                
+                # Also save CosineSimilarity logs in a separate section
+                if self.cosine_log_buffer:
+                    f.write("\n\n" + "="*80 + "\n")
+                    f.write("=== COSINESIMILARITY LOGS ===\n")
+                    f.writelines(self.cosine_log_buffer)
+                
+                # Also save filtered logs in a separate section
+                if self.filtered_log_buffer and self.current_filters:
+                    f.write("\n\n" + "="*80 + "\n")
+                    f.write(f"=== FILTERED LOGS (Filters: {', '.join(self.current_filters)}) ===\n")
+                    f.writelines(self.filtered_log_buffer)
             
-            return True, f"Logs saved to {filename}"
+            file_size = os.path.getsize(filename)
+            file_size_mb = file_size / (1024 * 1024)
+            
+            debug_logger.info(f"Saved {len(self.log_buffer)} entries, file size: {file_size_mb:.2f} MB")
+            
+            return True, f"✅ {len(self.log_buffer)} log entries saved to {filename} ({file_size_mb:.2f} MB)"
         except Exception as e:
-            return False, f"Failed to save logs: {str(e)}"
+            debug_logger.error(f"Failed to save logs: {str(e)}", exc_info=True)
+            return False, f"❌ Failed to save logs: {str(e)}"
     
     def pull_chr_file(self, os_type):
-        """Pull CHR.db file based on OS type with trial and error method"""
+        """Pull CHR.db file with retry logic and proper path handling - Windows compatible"""
+        debug_logger.info(f"Starting CHR file pull for OS type: {os_type}")
+        
         try:
             devices = self.get_connected_devices()
             if not devices:
+                debug_logger.warning("No devices connected for file pull")
                 return False, "No devices connected"
             
             # Find first available device
@@ -744,10 +1618,17 @@ class ADBManager:
                     break
             
             if not device_id:
+                debug_logger.warning("No active devices found")
                 return False, "No active devices found"
+            
+            debug_logger.info(f"Pulling from device: {device_id}")
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             local_filename = f"CHR_{os_type}_{timestamp}.db"
+            
+            # Escape/quote Windows paths
+            if self.platform_system == 'windows':
+                local_filename = f'"{local_filename}"' if ' ' in local_filename else local_filename
             
             # Define all possible paths for each OS type
             path_mapping = {
@@ -770,39 +1651,58 @@ class ADBManager:
             if not remote_paths:
                 return False, f"Unsupported OS type: {os_type}"
             
-            # Try each path until one works
+            # Try each path with retry logic (3 attempts per path)
             for i, remote_path in enumerate(remote_paths, 1):
-                try:
-                    print(f"Trying path {i}/{len(remote_paths)}: {remote_path}")
-                    
-                    # Execute ADB pull command
-                    result = subprocess.run(['adb', '-s', device_id, 'pull', remote_path, local_filename], 
-                                          capture_output=True, text=True, timeout=30)
-                    
-                    if result.returncode == 0 and os.path.exists(local_filename):
-                        # Check if file has actual content (not empty)
-                        file_size = os.path.getsize(local_filename)
-                        if file_size > 0:
-                            return True, f"✅ Successfully pulled {os_type.upper()} CHR.db to {local_filename} ({file_size} bytes)"
-                        else:
-                            # File exists but is empty, try next path
-                            os.remove(local_filename)
-                            continue
-                    else:
-                        # Command failed, try next path
-                        if os.path.exists(local_filename):
-                            os.remove(local_filename)
-                        continue
+                debug_logger.info(f"Trying path {i}/{len(remote_paths)}: {remote_path}")
+                
+                for attempt in range(3):  # 3 retries per path
+                    try:
+                        if attempt > 0:
+                            debug_logger.debug(f"Retry attempt {attempt + 1}/3 for path: {remote_path}")
+                            time.sleep(1)  # Brief delay before retry
                         
-                except subprocess.TimeoutExpired:
-                    return False, f"Pull operation timed out for {os_type}"
-                except Exception as e:
-                    print(f"Error trying path {remote_path}: {str(e)}")
-                    continue
+                        # Execute ADB pull command
+                        result = self._run_adb_with_retry(
+                            [self.adb_cmd, '-s', device_id, 'pull', remote_path, local_filename.strip('"')],
+                            max_attempts=2, timeout=30
+                        )
+                        
+                        if result and result.returncode == 0:
+                            # Check if file exists and has content
+                            actual_filename = local_filename.strip('"')
+                            if os.path.exists(actual_filename):
+                                file_size = os.path.getsize(actual_filename)
+                                if file_size > 0:
+                                    debug_logger.info(f"✅ Successfully pulled file: {actual_filename} ({file_size} bytes)")
+                                    return True, f"✅ Successfully pulled {os_type.upper()} CHR.db to {actual_filename} ({file_size} bytes)"
+                                else:
+                                    # File exists but is empty, try next path
+                                    debug_logger.warning(f"Pulled file is empty: {actual_filename}")
+                                    os.remove(actual_filename)
+                                    break  # Break retry loop, try next path
+                        else:
+                            # Command failed
+                            actual_filename = local_filename.strip('"')
+                            if os.path.exists(actual_filename):
+                                os.remove(actual_filename)
+                            if attempt == 2:  # Last attempt for this path
+                                debug_logger.warning(f"All retries failed for path: {remote_path}")
+                                break
+                            
+                    except subprocess.TimeoutExpired:
+                        debug_logger.error(f"Pull operation timed out for path: {remote_path}")
+                        if attempt == 2:
+                            return False, f"Pull operation timed out for {os_type}"
+                    except Exception as e:
+                        debug_logger.error(f"Error on path {remote_path} (attempt {attempt + 1}): {str(e)}")
+                        if attempt == 2:
+                            break  # Try next path
             
+            debug_logger.error(f"All paths failed for {os_type}")
             return False, f"❌ Failed to pull {os_type.upper()} CHR.db - file not found in any expected location"
                 
         except Exception as e:
+            debug_logger.error(f"CHR file pull exception: {str(e)}", exc_info=True)
             return False, f"Error pulling CHR file: {str(e)}"
 
 # Initialize ADB Manager
@@ -821,60 +1721,117 @@ def get_devices():
 
 @app.route('/api/start-logging', methods=['POST'])
 def start_logging():
-    """API endpoint to start logging"""
-    data = request.get_json()
-    device_id = data.get('device_id')
-    
-    if not device_id:
-        return jsonify({'success': False, 'message': 'Device ID required'})
-    
-    success, message = adb_manager.start_logging(device_id)
-    return jsonify({'success': success, 'message': message})
+    """API endpoint to start logging with validation"""
+    try:
+        data = request.get_json()
+        device_id = data.get('device_id', '').strip() if data else ''
+        
+        if not device_id:
+            return jsonify({'success': False, 'message': '❌ Device ID is required to start logging'})
+        
+        success, message = adb_manager.start_logging(device_id)
+        return jsonify({'success': success, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error starting logging: {str(e)}'})
 
 @app.route('/api/stop-logging', methods=['POST'])
 def stop_logging():
-    """API endpoint to stop logging"""
-    success, message = adb_manager.stop_logging()
-    return jsonify({'success': success, 'message': message})
+    """API endpoint to stop logging with validation"""
+    try:
+        success, message = adb_manager.stop_logging()
+        return jsonify({'success': success, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error stopping logging: {str(e)}'})
 
 @app.route('/api/clear-logs', methods=['POST'])
 def clear_logs():
-    """API endpoint to clear logs"""
-    adb_manager.clear_logs()
-    return jsonify({'success': True, 'message': 'Logs cleared'})
-
-@app.route('/api/get-logs')
-def get_logs():
-    """API endpoint to get current logs"""
-    all_logs, filtered_logs = adb_manager.get_logs()
-    
-    # Apply current filter if set
-    filter_keyword = request.args.get('filter', '')
-    if filter_keyword:
-        adb_manager.set_filter(filter_keyword)
-    
-    return jsonify({
-        'all_logs': all_logs,
-        'filtered_logs': filtered_logs
-    })
+    """API endpoint to clear logs with validation"""
+    try:
+        message = adb_manager.clear_logs()
+        return jsonify({'success': True, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error clearing logs: {str(e)}'})
 
 @app.route('/api/save-logs', methods=['POST'])
 def save_logs():
-    """API endpoint to save logs"""
-    success, message = adb_manager.save_logs()
-    return jsonify({'success': success, 'message': message})
+    """API endpoint to save logs with validation"""
+    try:
+        data = request.get_json() or {}
+        custom_filename = data.get('filename', '').strip()
+        
+        success, message = adb_manager.save_logs(custom_filename if custom_filename else None)
+        return jsonify({'success': success, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error saving logs: {str(e)}'})
+
+@app.route('/api/apply-filters', methods=['POST'])
+def apply_filters():
+    """API endpoint to apply multiple filters with validation"""
+    try:
+        data = request.get_json()
+        filters = data.get('filters', []) if data else []
+        
+        # Validate and clean filters
+        valid_filters = [f.strip() for f in filters if f and f.strip()]
+        
+        if not valid_filters:
+            return jsonify({'success': False, 'message': '❌ At least one valid filter keyword is required'})
+        
+        adb_manager.set_filters(valid_filters)
+        return jsonify({
+            'success': True, 
+            'message': f'✅ Filters applied: {", ".join(valid_filters)}',
+            'active_filters': valid_filters
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error applying filters: {str(e)}'})
 
 @app.route('/api/pull-file', methods=['POST'])
 def pull_file():
-    """API endpoint to pull CHR.db file"""
-    data = request.get_json()
-    os_type = data.get('os_type')
-    
-    if not os_type:
-        return jsonify({'success': False, 'message': 'OS type required'})
-    
-    success, message = adb_manager.pull_chr_file(os_type)
-    return jsonify({'success': success, 'message': message})
+    """API endpoint to pull CHR.db file with validation"""
+    try:
+        data = request.get_json()
+        os_type = data.get('os_type', '').strip().lower() if data else ''
+        
+        if os_type not in ['vega', 'puffin', 'fos']:
+            return jsonify({'success': False, 'message': '❌ Invalid OS type. Must be vega, puffin, or fos'})
+        
+        success, message = adb_manager.pull_chr_file(os_type)
+        return jsonify({'success': success, 'message': message})
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'❌ Error pulling file: {str(e)}'})
+
+@app.route('/api/get-logs')
+def get_logs():
+    """API endpoint to get current logs with status info and detection verdict"""
+    try:
+        all_logs, filtered_logs, cosine_logs = adb_manager.get_logs()
+        
+        return jsonify({
+            'all_logs': all_logs,
+            'filtered_logs': filtered_logs,
+            'cosine_logs': cosine_logs,
+            'active_filters': adb_manager.current_filters,
+            'is_logging': adb_manager.is_logging_active,
+            'current_device': adb_manager.current_device,
+            'log_count': len(adb_manager.log_buffer),
+            'filtered_count': len(adb_manager.filtered_log_buffer),
+            'cosine_count': len(adb_manager.cosine_log_buffer),
+            'detection_verdict': adb_manager.detection_verdict,
+            'fallback_mode': adb_manager.raw_fallback_mode
+        })
+    except Exception as e:
+        debug_logger.error(f"Error in get_logs API: {str(e)}", exc_info=True)
+        return jsonify({
+            'error': f'Error retrieving logs: {str(e)}',
+            'all_logs': '',
+            'filtered_logs': '',
+            'cosine_logs': '',
+            'active_filters': [],
+            'is_logging': False,
+            'detection_verdict': '',
+            'fallback_mode': False
+        })
 
 def find_free_port():
     """Find a free port to run the Flask application"""
@@ -898,25 +1855,47 @@ if __name__ == '__main__':
     # Find an available port
     port = find_free_port()
     
-    print("="*60)
-    print("🚀 Starting ADB GUI Tool...")
-    print("="*60)
+    print("="*70)
+    print("🚀 Starting ADB GUI Tool with Specific Log Pattern Filtering...")
+    print("="*70)
     print("✅ Make sure ADB is installed and in your PATH")
     print("✅ Connect your device via USB and enable USB Debugging")
-    print("="*60)
+    print("="*70)
     print(f"🌐 Access the GUI at: http://localhost:{port}")
     print(f"🌐 Or from network:   http://0.0.0.0:{port}")
-    print("="*60)
+    print("="*70)
     print(f"🔌 Dynamic Port: {port} (Auto-selected)")
+    print(f"💻 Platform: {platform.system()} ({platform.platform()})")
+    print(f"🔧 ADB Command: {'adb.exe' if platform.system().lower() == 'windows' else 'adb'}")
+    print(f"🔍 Filter Command: {'findstr' if platform.system().lower() == 'windows' else 'grep'}")
     print("📱 Supported Devices: Vega OS, Puffin OS, FOS")
     print("🛠️  Press Ctrl+C to stop the server")
-    print("="*60)
-    print("📋 Features Available:")
+    print("="*70)
+    print("📋 Enhanced Features Available:")
     print("   • Real-time device detection")
-    print("   • Live log monitoring with grep filtering")
+    print("   • Specific log pattern filtering (CosineSimilarityCache, eventType=Speech, etc.)")
+    print("   • Cross-platform log monitoring (Windows/Mac/Linux)")
+    print("   • Multi-filter user grep support (3 additional filter inputs)")
     print("   • CHR.db file extraction for all OS types")
     print("   • Local file storage with timestamps")
-    print("="*60)
+    print("="*70)
+    print("🎯 Target Log Patterns:")
+    print("   • CosineSimilarityCache::LookupImpl")
+    print("   • eventType=Speech")
+    print("   • RESULT_GENERATOR")
+    print("   • Calling onCacheUpdate")
+    print("="*70)
+    if platform.system().lower() == 'windows':
+        print("🪟 Windows Optimizations:")
+        print("   • File-based log capture with findstr filtering")
+        print("   • adb.exe executable detection")
+        print("   • Hidden console windows")
+    else:
+        print("🐧 Unix/Linux/Mac Optimizations:")
+        print("   • Pipe-based log capture with grep filtering")  
+        print("   • Standard ADB executable")
+        print("   • Select-based I/O for performance")
+    print("="*70)
     
     try:
         app.run(debug=False, host='0.0.0.0', port=port, threaded=True)

@@ -1,0 +1,8 @@
+# ADB GUI Tool - Python Dependencies
+# Install with: pip install -r requirements_adb_gui.txt
+
+Flask>=3.0.0
+psutil>=5.9.0
+
+# Optional but recommended
+Werkzeug>=3.0.0
